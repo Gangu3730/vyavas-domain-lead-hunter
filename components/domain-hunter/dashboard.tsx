@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Building2, ChevronRight, CircleDot, Flame, Globe2, LayoutDashboard, MapPin, Search, Settings, ShieldCheck, SlidersHorizontal, Target, Users, Zap } from 'lucide-react';
+import { Activity, Building2, ChevronRight, CircleDot, FileSpreadsheet, Flame, Globe2, LayoutDashboard, MapPin, Search, Settings, ShieldCheck, SlidersHorizontal, Target, Users, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ export function DomainHunterDashboard() {
   return <div className="min-h-screen bg-[#f4f7fb] text-[#142033]">
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col bg-[#0b1d32] text-slate-300 lg:flex">
       <div className="flex h-20 items-center gap-3 border-b border-white/8 px-6"><div className="grid size-9 place-items-center rounded-xl bg-[#4de0ad] text-[#092033]"><Zap className="size-5"/></div><div><div className="text-lg font-bold tracking-[.16em] text-white">VYAVAS</div><div className="text-[11px] uppercase tracking-[.18em] text-slate-500">Growth OS</div></div></div>
-      <nav className="flex-1 px-3 py-5 text-sm"><div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-600">Workspace</div>{[['Dashboard',LayoutDashboard],['Prospects',Users],['Domain Lead Hunter',Target],['Activity',Activity]].map(([label,Icon])=><button key={label as string} className={`mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left ${label==='Domain Lead Hunter'?'bg-[#153554] font-semibold text-white shadow-[inset_3px_0_0_#4de0ad]':'hover:bg-white/5'}`}><Icon className="size-[18px]"/>{label as string}</button>)}<div className="mb-2 mt-7 px-3 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-600">System</div><button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5"><Settings className="size-[18px]"/>Settings</button></nav>
+      <nav className="flex-1 px-3 py-5 text-sm"><div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-600">Workspace</div>{[['Dashboard',LayoutDashboard],['Prospects',Users],['Domain Lead Hunter',Target],['Activity',Activity]].map(([label,Icon])=><button key={label as string} className={`mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left ${label==='Domain Lead Hunter'?'bg-[#153554] font-semibold text-white shadow-[inset_3px_0_0_#4de0ad]':'hover:bg-white/5'}`}><Icon className="size-[18px]"/>{label as string}</button>)}<a href="/domain-filter" className="mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5"><FileSpreadsheet className="size-[18px]"/>Domain Lead Filter</a><div className="mb-2 mt-7 px-3 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-600">System</div><button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-white/5"><Settings className="size-[18px]"/>Settings</button></nav>
       <div className="m-4 rounded-xl border border-white/8 bg-white/[.04] p-4"><div className="mb-2 flex items-center gap-2 text-xs font-semibold text-white"><ShieldCheck className="size-4 text-[#4de0ad]"/>Public data only</div><p className="text-xs leading-relaxed text-slate-500">Location labels are evidence-based and never presented as registration location.</p></div>
     </aside>
     <main className="min-h-screen lg:pl-[248px]">
