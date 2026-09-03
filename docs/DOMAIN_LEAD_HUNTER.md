@@ -43,6 +43,7 @@ Indexes cover the documented pagination and filter paths: date, TLD, website sta
 - `GET /api/domain-hunter/domains/:id` — domain, technology and evidence detail.
 - `POST /api/domain-hunter/import` — manual Smet import; accepts optional ISO `date` and bounded `limit`.
 - `POST /api/domain-hunter/scan/:id` — protected public website scan and enrichment.
+- `POST /api/domain-hunter/intelligence/:id` — public RDAP registration events plus Google DNS MX/SPF capability evidence. MX confirms mail capability, never an actual mailbox.
 - `POST /api/domain-hunter/qualify/:id` — idempotent qualification entry point.
 - `POST /api/domain-hunter/add-to-prospect/:id` — duplicate-safe CRM mapping.
 - `GET /api/domain-hunter/stats` — database-derived daily dashboard totals.
