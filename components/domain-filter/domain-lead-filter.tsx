@@ -8,6 +8,7 @@ import {
   FileSpreadsheet,
   Globe2,
   LoaderCircle,
+  Mail,
   Search,
   ShieldCheck,
   Upload,
@@ -664,6 +665,23 @@ export function DomainLeadFilter() {
     a.click();
     URL.revokeObjectURL(a.href);
   }
+  function openCampaignStudio() {
+    const recipients = filtered
+      .filter((x) => x.email)
+      .map((x) => ({
+        domain: x.domain,
+        email: x.email,
+        firstName: x.firstName,
+        lastName: x.lastName,
+        company: x.company,
+        country: x.country,
+      }));
+    sessionStorage.setItem(
+      'vyavas_campaign_recipients',
+      JSON.stringify(recipients),
+    );
+    window.location.href = '/super-admin';
+  }
   async function exportExcel() {
     const data = selected.size
       ? filtered.filter((x) => selected.has(x.id))
@@ -1008,6 +1026,14 @@ export function DomainLeadFilter() {
                   >
                     <Download className="mr-2 size-4" />
                     CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={!filtered.some((x) => x.email)}
+                    onClick={openCampaignStudio}
+                  >
+                    <Mail className="mr-2 size-4" />
+                    Bulk Email
                   </Button>
                   <Button
                     disabled={!filtered.length}
