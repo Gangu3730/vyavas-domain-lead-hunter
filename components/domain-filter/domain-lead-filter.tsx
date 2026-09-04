@@ -37,6 +37,8 @@ type Field =
   | 'domain'
   | 'email'
   | 'name'
+  | 'firstName'
+  | 'lastName'
   | 'organization'
   | 'country'
   | 'state'
@@ -60,6 +62,8 @@ type Lead = {
   email: string;
   emailType: string;
   name: string;
+  firstName: string;
+  lastName: string;
   company: string;
   country: string;
   state: string;
@@ -87,6 +91,8 @@ const fields: Field[] = [
   'domain',
   'email',
   'name',
+  'firstName',
+  'lastName',
   'organization',
   'country',
   'state',
@@ -99,6 +105,8 @@ const labels: Record<Field, string> = {
   domain: 'Domain',
   email: 'Email',
   name: 'Contact name',
+  firstName: 'First name',
+  lastName: 'Last name',
   organization: 'Organization',
   country: 'Country',
   state: 'State / region',
@@ -111,6 +119,8 @@ const aliases: Record<Field, string[]> = {
   domain: ['domain', 'domainname', 'domain_name', 'website', 'url'],
   email: ['email', 'emailaddress', 'registrantemail', 'registrant_email'],
   name: ['name', 'registrantname', 'registrant_name'],
+  firstName: ['firstname', 'first_name', 'givenname', 'given_name'],
+  lastName: ['lastname', 'last_name', 'surname', 'familyname', 'family_name'],
   organization: [
     'organization',
     'company',
@@ -259,6 +269,16 @@ function classify(domain: string, company: string) {
   if (/shop|store|commerce|retail/.test(t)) return 'RETAIL / E-COMMERCE';
   return 'NON-IT BUSINESS';
 }
+function splitName(fullName: string) {
+  const name = fullName.trim();
+  if (!name) return { firstName: '', lastName: '' };
+  if (name.includes(',')) {
+    const [last, first] = name.split(',', 2).map((x) => x.trim());
+    return { firstName: first, lastName: last };
+  }
+  const parts = name.split(/\s+/);
+  return { firstName: parts.shift() ?? '', lastName: parts.join(' ') };
+}
 function score(
   domain: string,
   email: string,
@@ -400,13 +420,23 @@ export function DomainLeadFilter() {
         domain = normalizeDomain(r[mapping.domain]),
         email = clean(r[mapping.email]).toLowerCase(),
         name = clean(r[mapping.name]),
+        split = splitName(name),
+        firstName = clean(r[mapping.firstName]) || split.firstName,
+        lastName = clean(r[mapping.lastName]) || split.lastName,
         company = clean(r[mapping.organization]),
         phone = clean(r[mapping.phone]),
         country = normalizeCountry(r[mapping.country]),
         state = clean(r[mapping.state]),
         city = clean(r[mapping.city]),
         createdDate = clean(r[mapping.createdDate]).slice(0, 10),
-        privateText = [r[mapping.privacy], name, company, email]
+        privateText = [
+          r[mapping.privacy],
+          name,
+          firstName,
+          lastName,
+          company,
+          email,
+        ]
           .map(clean)
           .join(' ')
           .toLowerCase();
@@ -440,6 +470,8 @@ export function DomainLeadFilter() {
             : 'BUSINESS_DOMAIN'
           : 'NONE',
         name,
+        firstName,
+        lastName,
         company,
         country,
         state,
@@ -473,7 +505,10 @@ export function DomainLeadFilter() {
     setProgress(100);
     setStage('results');
     const automatic = sorted.filter(
-      (x) => autoCountries.includes(x.country) && !x.itExcluded && (x.email || x.phone),
+      (x) =>
+        autoCountries.includes(x.country) &&
+        !x.itExcluded &&
+        (x.email || x.phone),
     );
     if (automatic.length) void scanWebsites(automatic, true);
   }
@@ -513,17 +548,28 @@ export function DomainLeadFilter() {
             .toLowerCase()
             .includes(query.toLowerCase()),
       ),
-    [leads, minScore, focusCountries, countryFilter, emailOnly, phoneOnly, query],
+    [
+      leads,
+      minScore,
+      focusCountries,
+      countryFilter,
+      emailOnly,
+      phoneOnly,
+      query,
+    ],
   );
   async function scanWebsites(source?: Lead[], automatic = false) {
-    const pool = source ?? (selected.size ? leads.filter((x) => selected.has(x.id)) : otherCandidates);
-    const eligible = pool
-      .filter(
-        (x) =>
-          x.websiteStatus === 'UNSCANNED' &&
-          !x.itExcluded &&
-          (x.email || x.phone),
-      );
+    const pool =
+      source ??
+      (selected.size
+        ? leads.filter((x) => selected.has(x.id))
+        : otherCandidates);
+    const eligible = pool.filter(
+      (x) =>
+        x.websiteStatus === 'UNSCANNED' &&
+        !x.itExcluded &&
+        (x.email || x.phone),
+    );
     const batch = automatic ? eligible : eligible.slice(0, 100);
     if (!batch.length) {
       setError('Select unscanned contactable records first.');
@@ -591,6 +637,8 @@ export function DomainLeadFilter() {
         'websiteStatus',
         'company',
         'name',
+        'firstName',
+        'lastName',
         'email',
         'emailType',
         'phone',
@@ -628,6 +676,8 @@ export function DomainLeadFilter() {
       ['Website Status', 'websiteStatus'],
       ['Company', 'company'],
       ['Contact', 'name'],
+      ['First Name', 'firstName'],
+      ['Last Name', 'lastName'],
       ['Email', 'email'],
       ['Email Type', 'emailType'],
       ['Phone', 'phone'],
@@ -805,14 +855,47 @@ export function DomainLeadFilter() {
               <div className="border-b bg-emerald-50 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="font-bold text-emerald-950">Automatic country workflow</h3>
-                    <p className="mt-1 text-sm text-emerald-800">USA, UAE, Canada, Australia and India start scanning automatically after upload.</p>
+                    <h3 className="font-bold text-emerald-950">
+                      Automatic country workflow
+                    </h3>
+                    <p className="mt-1 text-sm text-emerald-800">
+                      USA, UAE, Canada, Australia and India start scanning
+                      automatically after upload.
+                    </p>
                   </div>
-                  <Badge className="bg-emerald-700 text-white">{automaticWaiting.toLocaleString()} priority records waiting</Badge>
+                  <Badge className="bg-emerald-700 text-white">
+                    {automaticWaiting.toLocaleString()} priority records waiting
+                  </Badge>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-3">
-                  {autoCountries.map((country) => <label key={country} className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-medium"><Checkbox checked={focusCountries.has(country)} onCheckedChange={(checked)=>setFocusCountries(current=>{const next=new Set(current);if(checked)next.add(country);else next.delete(country);return next})}/>{country}</label>)}
-                  <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium"><Checkbox checked={focusCountries.size===0} onCheckedChange={(checked)=>{if(checked)setFocusCountries(new Set())}}/>Other / all countries</label>
+                  {autoCountries.map((country) => (
+                    <label
+                      key={country}
+                      className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-medium"
+                    >
+                      <Checkbox
+                        checked={focusCountries.has(country)}
+                        onCheckedChange={(checked) =>
+                          setFocusCountries((current) => {
+                            const next = new Set(current);
+                            if (checked) next.add(country);
+                            else next.delete(country);
+                            return next;
+                          })
+                        }
+                      />
+                      {country}
+                    </label>
+                  ))}
+                  <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium">
+                    <Checkbox
+                      checked={focusCountries.size === 0}
+                      onCheckedChange={(checked) => {
+                        if (checked) setFocusCountries(new Set());
+                      }}
+                    />
+                    Other / all countries
+                  </label>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3 border-b p-5">
@@ -874,7 +957,8 @@ export function DomainLeadFilter() {
               <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
                 <span className="text-sm text-slate-500">
                   {filtered.length.toLocaleString()} qualified ·{' '}
-                  {otherCandidates.length.toLocaleString()} other-country records waiting for manual check
+                  {otherCandidates.length.toLocaleString()} other-country
+                  records waiting for manual check
                 </span>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -891,7 +975,16 @@ export function DomainLeadFilter() {
                       ? `${scanProgress.done}/${scanProgress.total}`
                       : 'Check other countries: next 100'}
                   </Button>
-                  {scanning && <Button variant="destructive" onClick={()=>{stopScan.current=true}}>Stop automatic scan</Button>}
+                  {scanning && (
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        stopScan.current = true;
+                      }}
+                    >
+                      Stop automatic scan
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     onClick={() =>
@@ -965,6 +1058,11 @@ export function DomainLeadFilter() {
                           </Badge>
                         </TableCell>
                         <TableCell>
+                          <div className="font-medium">
+                            {[x.firstName, x.lastName]
+                              .filter(Boolean)
+                              .join(' ') || 'Name unavailable'}
+                          </div>
                           {x.email || 'No email'}
                           <div className="text-xs text-slate-400">
                             {x.phone || x.emailType}
