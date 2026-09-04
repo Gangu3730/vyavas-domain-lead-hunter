@@ -1,0 +1,1942 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>VYAVAS Growth OS</title>
+    <style>
+      :root {
+        --navy: #0b1d32;
+        --navy2: #153554;
+        --mint: #4de0ad;
+        --bg: #f4f7fb;
+        --line: #e2e8f0;
+        --muted: #64748b;
+        --text: #142033;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          14px Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+      .hide {
+        display: none !important;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 1px solid transparent;
+        border-radius: 9px;
+        padding: 10px 15px;
+        background: var(--navy);
+        color: white;
+        font-weight: 650;
+        cursor: pointer;
+        transition: 0.18s;
+      }
+      .btn:hover {
+        background: var(--navy2);
+        transform: translateY(-1px);
+      }
+      .btn.alt {
+        border-color: var(--line);
+        background: white;
+        color: var(--text);
+      }
+      .btn.alt:hover {
+        background: #f8fafc;
+      }
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        transform: none;
+      }
+      .login {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: minmax(420px, 42%) 1fr;
+        background: var(--navy);
+      }
+      .login-brand {
+        padding: 64px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        color: white;
+        background:
+          radial-gradient(circle at 20% 20%, #153f59, transparent 42%),
+          var(--navy);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .logo {
+        display: grid;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 13px;
+        background: var(--mint);
+        color: var(--navy);
+        font-size: 22px;
+      }
+      .brand b {
+        font-size: 19px;
+        letter-spacing: 0.16em;
+      }
+      .brand small {
+        display: block;
+        margin-top: 2px;
+        color: #698099;
+        letter-spacing: 0.17em;
+      }
+      .login-copy {
+        max-width: 520px;
+      }
+      .login-copy h1 {
+        font-size: 44px;
+        line-height: 1.08;
+        margin: 0 0 16px;
+      }
+      .login-copy p {
+        font-size: 17px;
+        line-height: 1.7;
+        color: #9fb0c2;
+      }
+      .login-panel {
+        display: grid;
+        place-items: center;
+        padding: 32px;
+        background: #f7f9fc;
+      }
+      .login-card {
+        width: min(430px, 100%);
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 34px;
+        box-shadow: 0 24px 65px #07152618;
+      }
+      .login-card h2 {
+        font-size: 25px;
+        margin: 0 0 6px;
+      }
+      .eyebrow {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        font-weight: 750;
+        color: #94a3b8;
+      }
+      .field {
+        display: grid;
+        gap: 7px;
+        margin: 16px 0;
+        font-weight: 650;
+      }
+      .field input,
+      .field select,
+      .field textarea,
+      .search {
+        width: 100%;
+        border: 1px solid #cfd8e5;
+        border-radius: 9px;
+        padding: 11px 12px;
+        background: white;
+        outline: none;
+      }
+      .field input:focus,
+      .field select:focus,
+      .field textarea:focus,
+      .search:focus {
+        border-color: #62bba0;
+        box-shadow: 0 0 0 3px #4de0ad22;
+      }
+      .shell {
+        min-height: 100vh;
+      }
+      .sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        width: 248px;
+        background: var(--navy);
+        color: #a7b5c5;
+        display: flex;
+        flex-direction: column;
+      }
+      .side-brand {
+        height: 80px;
+        padding: 0 23px;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid #ffffff12;
+      }
+      .nav {
+        padding: 20px 12px;
+        flex: 1;
+      }
+      .nav-label {
+        padding: 8px 12px;
+        color: #506579;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        font-weight: 750;
+      }
+      .nav button {
+        width: 100%;
+        border: 0;
+        background: transparent;
+        color: #aab8c7;
+        text-align: left;
+        padding: 11px 13px;
+        border-radius: 9px;
+        margin: 2px 0;
+        cursor: pointer;
+        font-weight: 550;
+      }
+      .nav button:hover {
+        background: #ffffff0b;
+        color: white;
+      }
+      .nav button.active {
+        background: var(--navy2);
+        color: white;
+        box-shadow: inset 3px 0 var(--mint);
+      }
+      .side-note {
+        margin: 16px;
+        padding: 15px;
+        border: 1px solid #ffffff12;
+        border-radius: 12px;
+        background: #ffffff08;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      .workspace {
+        min-height: 100vh;
+        margin-left: 248px;
+      }
+      .top {
+        height: 80px;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 30px;
+        border-bottom: 1px solid var(--line);
+        background: #ffffffee;
+        backdrop-filter: blur(12px);
+      }
+      .crumb {
+        font-size: 12px;
+        color: #94a3b8;
+      }
+      .top h1 {
+        font-size: 20px;
+        margin: 3px 0 0;
+      }
+      .user {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .avatar {
+        display: grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 11px;
+        background: #e7fff6;
+        color: #167253;
+        font-weight: 800;
+      }
+      .content {
+        max-width: 1500px;
+        margin: auto;
+        padding: 28px;
+      }
+      .page-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      .page-head h2 {
+        font-size: 24px;
+        margin: 0;
+      }
+      .page-head p {
+        color: var(--muted);
+        margin: 6px 0 0;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 15px;
+      }
+      .card {
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 1px 3px #0f172a08;
+      }
+      .metric {
+        position: relative;
+        overflow: hidden;
+      }
+      .metric .ico {
+        float: right;
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        background: #eef8ff;
+        font-size: 18px;
+      }
+      .metric span {
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .metric b {
+        display: block;
+        font-size: 30px;
+        margin-top: 8px;
+      }
+      .metric small {
+        color: #94a3b8;
+      }
+      .workflow {
+        margin-top: 18px;
+      }
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+        margin-top: 18px;
+      }
+      .step {
+        position: relative;
+        border-radius: 12px;
+        background: #f7f9fc;
+        padding: 15px;
+        min-height: 96px;
+      }
+      .step strong {
+        display: block;
+        margin: 9px 0 4px;
+      }
+      .step em {
+        display: grid;
+        place-items: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: var(--navy);
+        color: white;
+        font-style: normal;
+      }
+      .step small {
+        color: var(--muted);
+      }
+      .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+      .toolbar-actions {
+        display: flex;
+        gap: 9px;
+        flex-wrap: wrap;
+      }
+      .table-card {
+        padding: 0;
+        overflow: hidden;
+      }
+      .table-tools {
+        display: flex;
+        gap: 10px;
+        padding: 16px;
+        border-bottom: 1px solid var(--line);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 13px 15px;
+        border-bottom: 1px solid #edf1f6;
+        text-align: left;
+      }
+      th {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #64748b;
+        background: #f8fafc;
+      }
+      tbody tr:hover {
+        background: #fbfdff;
+      }
+      .badge {
+        display: inline-flex;
+        padding: 5px 9px;
+        border-radius: 999px;
+        background: #eef2f7;
+        color: #475569;
+        font-size: 11px;
+        font-weight: 750;
+      }
+      .badge.green {
+        background: #e8fbf3;
+        color: #167253;
+      }
+      .badge.orange {
+        background: #fff3df;
+        color: #a85408;
+      }
+      .badge.blue {
+        background: #eaf4ff;
+        color: #1769aa;
+      }
+      .notice {
+        margin: 12px 0;
+        padding: 13px 15px;
+        border: 1px solid #bfead8;
+        border-radius: 10px;
+        background: #edfff8;
+        color: #176b4d;
+      }
+      .notice.error {
+        border-color: #ffc9c5;
+        background: #fff3f2;
+        color: #a32018;
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+      .drop {
+        border: 2px dashed #cbd5e1;
+        border-radius: 18px;
+        padding: 45px;
+        text-align: center;
+        background: linear-gradient(#fff, #fbfdff);
+      }
+      .drop-icon {
+        display: grid;
+        place-items: center;
+        margin: auto;
+        width: 58px;
+        height: 58px;
+        border-radius: 16px;
+        background: #eafff7;
+        font-size: 25px;
+      }
+      .process {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        background: #071526aa;
+        display: grid;
+        place-items: center;
+        padding: 20px;
+        backdrop-filter: blur(5px);
+      }
+      .process-card {
+        width: min(780px, 96vw);
+        background: white;
+        border-radius: 22px;
+        padding: 28px;
+        box-shadow: 0 30px 100px #0005;
+      }
+      .process-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+      }
+      .process-head h2 {
+        margin: 0;
+      }
+      .progress {
+        height: 9px;
+        background: #e7edf3;
+        border-radius: 99px;
+        overflow: hidden;
+        margin: 22px 0;
+      }
+      .progress i {
+        display: block;
+        height: 100%;
+        width: 8%;
+        background: linear-gradient(90deg, var(--mint), #1b9f79);
+        border-radius: 99px;
+        transition: width 0.45s;
+      }
+      .process-steps {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 8px;
+      }
+      .pstep {
+        padding: 12px;
+        border-radius: 10px;
+        background: #f3f6fa;
+        color: #748196;
+        font-size: 12px;
+      }
+      .pstep.active {
+        background: #eafff7;
+        color: #11694d;
+        font-weight: 700;
+      }
+      .pstep.done {
+        background: #edf5ff;
+        color: #1769aa;
+      }
+      .result-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-top: 18px;
+      }
+      .small {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      @media (max-width: 950px) {
+        .login {
+          grid-template-columns: 1fr;
+        }
+        .login-brand {
+          display: none;
+        }
+        .sidebar {
+          position: static;
+          width: auto;
+        }
+        .workspace {
+          margin-left: 0;
+        }
+        .shell {
+          display: block;
+        }
+        .grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .steps {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .nav {
+          display: flex;
+          overflow: auto;
+        }
+        .nav-label,
+        .side-note {
+          display: none;
+        }
+        .nav button {
+          white-space: nowrap;
+        }
+        .cols {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 560px) {
+        .grid,
+        .result-grid {
+          grid-template-columns: 1fr;
+        }
+        .content {
+          padding: 18px;
+        }
+        .top {
+          padding: 0 16px;
+        }
+        .user span {
+          display: none;
+        }
+      }
+      .lead-stats {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .lead-stat {
+        padding: 15px;
+      }
+      .lead-stat b {
+        display: block;
+        font-size: 22px;
+        margin-top: 5px;
+      }
+      .filterbar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+      .filterbar .search {
+        max-width: 300px;
+      }
+      .checkchip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: white;
+        font-size: 12px;
+        font-weight: 650;
+      }
+      .checkchip:has(input:checked) {
+        border-color: #6dd5b4;
+        background: #effdf8;
+        color: #146b50;
+      }
+      .filterbar select {
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: white;
+      }
+      .results-foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 16px;
+        color: var(--muted);
+        font-size: 12px;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .pager {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .pager button {
+        border: 1px solid var(--line);
+        background: white;
+        border-radius: 7px;
+        padding: 6px 9px;
+        cursor: pointer;
+      }
+      .pager button.active {
+        background: var(--navy);
+        color: white;
+        border-color: var(--navy);
+      }
+      @media (max-width: 900px) {
+        .lead-stats {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <section id="login" class="login">
+      <div class="login-brand">
+        <div class="brand">
+          <div class="logo">⚡</div>
+          <div><b>VYAVAS</b><small>GROWTH OS</small></div>
+        </div>
+        <div class="login-copy">
+          <div class="eyebrow" style="color: #4de0ad">
+            Domain intelligence workspace
+          </div>
+          <h1>Turn newly registered domains into qualified opportunities.</h1>
+          <p>
+            One secure system for domain filtering, website verification,
+            prospects and outreach campaigns.
+          </p>
+        </div>
+        <div style="color: #5f758b">
+          Private · Evidence-based · MySQL powered
+        </div>
+      </div>
+      <div class="login-panel">
+        <form id="loginForm" class="login-card">
+          <div class="eyebrow">Secure workspace</div>
+          <h2>Welcome back</h2>
+          <p class="small">Sign in to your VYAVAS admin account.</p>
+          <div id="loginMsg"></div>
+          <label class="field"
+            >Email<input
+              id="email"
+              type="email"
+              value="admin@vyavas.local"
+              required /></label
+          ><label class="field"
+            >Password<input
+              id="password"
+              type="password"
+              value="ChangeMeNow123!"
+              required /></label
+          ><button class="btn" style="width: 100%; margin-top: 8px">
+            Sign in securely →
+          </button>
+        </form>
+      </div>
+    </section>
+    <section id="app" class="shell hide">
+      <aside class="sidebar">
+        <div class="side-brand">
+          <div class="brand">
+            <div class="logo">⚡</div>
+            <div><b>VYAVAS</b><small>GROWTH OS</small></div>
+          </div>
+        </div>
+        <nav id="nav" class="nav">
+          <div class="nav-label">Workspace</div>
+          <button data-page="dashboard" class="active">
+            ▦ &nbsp; Dashboard</button
+          ><button data-page="imports">▣ &nbsp; Import & Filter</button
+          ><button data-page="leads">◎ &nbsp; Qualified Leads</button
+          ><button data-page="prospects">♙ &nbsp; Prospects</button
+          ><button data-page="campaigns">✉ &nbsp; Email Campaigns</button>
+          <div class="nav-label" style="margin-top: 18px">Administration</div>
+          <button data-page="users">♙ &nbsp; Users & Roles</button
+          ><button data-page="whatsapp">◉ &nbsp; WhatsApp</button
+          ><button data-page="audit">◷ &nbsp; Audit Log</button>
+        </nav>
+        <div class="side-note">
+          <b style="color: white">✓ MySQL connected</b><br />All imports, leads
+          and actions are saved permanently.
+        </div>
+      </aside>
+      <div class="workspace">
+        <header class="top">
+          <div>
+            <div class="crumb">VYAVAS / <span id="crumb">Dashboard</span></div>
+            <h1 id="pageTitle">Growth overview</h1>
+          </div>
+          <div class="user">
+            <div class="avatar">SA</div>
+            <span id="who"></span
+            ><button class="btn alt" onclick="logout()">Logout</button>
+          </div>
+        </header>
+        <main class="content">
+          <div id="msg"></div>
+          <section id="dashboard" class="page">
+            <div class="page-head">
+              <div>
+                <h2>Good to see you</h2>
+                <p>Here is what is happening across your lead pipeline.</p>
+              </div>
+              <button class="btn" onclick="go('imports')">
+                ＋ Import domain file
+              </button>
+            </div>
+            <div class="grid">
+              <div class="card metric">
+                <div class="ico">♙</div>
+                <span>Team users</span><b id="mUsers">—</b
+                ><small>Active workspace access</small>
+              </div>
+              <div class="card metric">
+                <div class="ico">◎</div>
+                <span>Saved leads</span><b id="mLeads">—</b
+                ><small>Persistent MySQL records</small>
+              </div>
+              <div class="card metric">
+                <div class="ico">◆</div>
+                <span>Prospects</span><b id="mProspects">—</b
+                ><small>Ready for campaigns</small>
+              </div>
+              <div class="card metric">
+                <div class="ico">✉</div>
+                <span>Campaign engine</span><b>Ready</b
+                ><small>SMTP activates on server</small>
+              </div>
+            </div>
+            <div class="card workflow">
+              <div class="eyebrow">Pipeline</div>
+              <h3>Complete qualification workflow</h3>
+              <div class="steps">
+                <div class="step">
+                  <em>1</em><strong>Upload</strong><small>Excel or CSV</small>
+                </div>
+                <div class="step">
+                  <em>2</em><strong>Normalize</strong
+                  ><small>Clean fields</small>
+                </div>
+                <div class="step">
+                  <em>3</em><strong>Verify</strong><small>Website gate</small>
+                </div>
+                <div class="step">
+                  <em>4</em><strong>Qualify</strong
+                  ><small>Score contacts</small>
+                </div>
+                <div class="step">
+                  <em>5</em><strong>Prospects</strong
+                  ><small>Admin approval</small>
+                </div>
+                <div class="step">
+                  <em>6</em><strong>Campaign</strong
+                  ><small>Safe SMTP queue</small>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section id="imports" class="page hide">
+            <div class="page-head">
+              <div>
+                <h2>Domain file filter</h2>
+                <p>
+                  Upload once. Processing and results remain saved in MySQL.
+                </p>
+              </div>
+              <span class="badge green">● Automatic worker online</span>
+            </div>
+            <form id="importForm" class="drop">
+              <div class="drop-icon">⇧</div>
+              <h2 style="margin-bottom: 6px">Upload domain database</h2>
+              <p class="small">Drag or choose an Excel/CSV file up to 50 MB.</p>
+              <input
+                id="fileInput"
+                name="file"
+                type="file"
+                accept=".csv,.xlsx"
+                required
+                style="margin: 18px"
+              /><br /><button class="btn">Upload & start processing</button>
+            </form>
+            <div id="importResult"></div>
+          </section>
+          <section id="leads" class="page hide">
+            <div class="page-head">
+              <div>
+                <h2>Domain filter results</h2>
+                <p>
+                  Select countries, process only those leads, then move the
+                  final qualified list. Only trusted free personal emails are
+                  eligible.
+                </p>
+              </div>
+              <div class="toolbar-actions">
+                <select
+                  id="exportScope"
+                  class="btn alt"
+                  style="padding-right: 30px"
+                >
+                  <option value="selected">Export selected</option>
+                  <option value="page">Export current page</option>
+                  <option value="all">Export all filtered</option>
+                </select>
+                <button class="btn alt" onclick="exportLeads()">
+                  ⇩ Export CSV
+                </button>
+                <button class="btn alt" onclick="moveProspects()">
+                  Move selected
+                </button>
+                <button class="btn" onclick="moveFilteredProspects()">
+                  Bulk move filtered to Prospects →
+                </button>
+              </div>
+            </div>
+            <div
+              class="card"
+              style="
+                margin-bottom: 16px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 18px;
+                flex-wrap: wrap;
+              "
+            >
+              <div>
+                <b id="batchTitle">Choose country and start processing</b>
+                <div id="batchNote" class="small" style="margin-top: 5px">
+                  Only checked countries will be scanned. Other countries remain
+                  pending.
+                </div>
+                <div
+                  class="progress"
+                  style="width: min(650px, 75vw); margin: 12px 0 0"
+                >
+                  <i id="batchBar" style="width: 0%"></i>
+                </div>
+              </div>
+              <button
+                id="startCountryBtn"
+                class="btn"
+                onclick="startCountryProcessing()"
+              >
+                ▶ Process selected countries
+              </button>
+            </div>
+            <form
+              id="exclusionForm"
+              class="card"
+              style="
+                margin-bottom: 16px;
+                display: flex;
+                align-items: end;
+                gap: 12px;
+                flex-wrap: wrap;
+              "
+            >
+              <label class="field" style="margin: 0; flex: 1; min-width: 280px"
+                >Eliminate domain, email or business text<input
+                  name="pattern"
+                  placeholder="e.g. westpac.com.au or registrar company"
+                  required
+              /></label>
+              <button class="btn" type="submit">⊘ Eliminate & remember</button>
+              <span class="small">Applies now and to every future sheet.</span>
+            </form>
+            <div class="lead-stats">
+              <div class="card lead-stat">
+                <span class="small">Imported</span><b id="sTotal">0</b>
+              </div>
+              <div class="card lead-stat">
+                <span class="small">Processing</span><b id="sPending">0</b>
+              </div>
+              <div class="card lead-stat">
+                <span class="small">No website</span><b id="sNoWebsite">0</b>
+              </div>
+              <div class="card lead-stat">
+                <span class="small">Live rejected</span><b id="sLive">0</b>
+              </div>
+              <div class="card lead-stat">
+                <span class="small">Rejected</span><b id="sRejected">0</b>
+              </div>
+              <div class="card lead-stat">
+                <span class="small">Qualified</span><b id="sQualified">0</b>
+              </div>
+            </div>
+            <div class="card table-card">
+              <div class="filterbar">
+                <input
+                  id="leadSearch"
+                  class="search"
+                  placeholder="Search domain, company, name or email"
+                  oninput="applyLeadFilters()"
+                /><select id="scoreFilter" onchange="applyLeadFilters()">
+                  <option value="0">All scores</option>
+                  <option value="60">Score ≥ 60</option>
+                  <option value="75">Score ≥ 75</option>
+                  <option value="90">Score ≥ 90</option></select
+                ><label class="checkchip"
+                  ><input
+                    class="countryPick"
+                    type="checkbox"
+                    value="USA"
+                    checked
+                    onchange="applyLeadFilters()"
+                  />USA</label
+                ><label class="checkchip"
+                  ><input
+                    class="countryPick"
+                    type="checkbox"
+                    value="UAE"
+                    checked
+                    onchange="applyLeadFilters()"
+                  />UAE</label
+                ><label class="checkchip"
+                  ><input
+                    class="countryPick"
+                    type="checkbox"
+                    value="Canada"
+                    checked
+                    onchange="applyLeadFilters()"
+                  />Canada</label
+                ><label class="checkchip"
+                  ><input
+                    class="countryPick"
+                    type="checkbox"
+                    value="Australia"
+                    checked
+                    onchange="applyLeadFilters()"
+                  />Australia</label
+                ><label class="checkchip"
+                  ><input
+                    class="countryPick"
+                    type="checkbox"
+                    value="India"
+                    checked
+                    onchange="applyLeadFilters()"
+                  />India</label
+                ><label class="checkchip"
+                  ><input
+                    id="otherCountry"
+                    type="checkbox"
+                    onchange="applyLeadFilters()"
+                  />Other</label
+                ><label class="checkchip"
+                  ><input
+                    id="emailOnly"
+                    type="checkbox"
+                    onchange="applyLeadFilters()"
+                  />Email</label
+                ><label class="checkchip"
+                  ><input
+                    id="phoneOnly"
+                    type="checkbox"
+                    onchange="applyLeadFilters()"
+                  />Phone</label
+                >
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        onchange="selectVisible(this.checked)"
+                      />
+                    </th>
+                    <th>Domain / company</th>
+                    <th>First / last name</th>
+                    <th>Email / phone</th>
+                    <th>Country</th>
+                    <th>Website gate</th>
+                    <th>Score</th>
+                  </tr>
+                </thead>
+                <tbody id="leadRows"></tbody>
+              </table>
+              <div class="results-foot">
+                <span id="leadCount">0 matching leads</span>
+                <label
+                  >Show
+                  <select
+                    id="pageSize"
+                    onchange="leadPage=1;applyLeadFilters()"
+                  >
+                    <option>10</option>
+                    <option selected>25</option>
+                    <option>50</option>
+                    <option>100</option>
+                    <option>250</option>
+                  </select>
+                  per page</label
+                >
+                <div id="leadPager" class="pager"></div>
+              </div>
+            </div>
+          </section>
+          <section id="prospects" class="page hide">
+            <div class="page-head">
+              <div>
+                <h2>Prospects</h2>
+                <p>Approved leads ready for outreach.</p>
+              </div>
+              <button class="btn" onclick="prepareCampaign()">
+                Create campaign with selected →
+              </button>
+            </div>
+            <div
+              class="lead-stats"
+              style="grid-template-columns: repeat(4, 1fr)"
+            >
+              <div class="card lead-stat">
+                <span class="small">All prospects</span><b id="pAll">0</b>
+              </div>
+              <div class="card lead-stat">
+                <span class="small">Added today</span><b id="pToday">0</b>
+              </div>
+              <div class="card lead-stat">
+                <span class="small">This month</span><b id="pMonth">0</b>
+              </div>
+              <div class="card lead-stat">
+                <span class="small">Filtered results</span
+                ><b id="pFiltered">0</b>
+              </div>
+            </div>
+            <div class="card table-card">
+              <div class="filterbar">
+                <input
+                  id="prospectSearch"
+                  class="search"
+                  placeholder="Search prospects"
+                  oninput="applyProspectFilters()"
+                />
+                <select
+                  id="prospectPeriod"
+                  onchange="toggleProspectDates();applyProspectFilters()"
+                >
+                  <option value="all">All dates</option>
+                  <option value="today">Today</option>
+                  <option value="day">Choose day</option>
+                  <option value="month">Choose month</option>
+                </select>
+                <input
+                  id="prospectDay"
+                  type="date"
+                  class="search hide"
+                  style="width: auto"
+                  onchange="applyProspectFilters()"
+                />
+                <input
+                  id="prospectMonth"
+                  type="month"
+                  class="search hide"
+                  style="width: auto"
+                  onchange="applyProspectFilters()"
+                />
+                <select id="prospectCountry" onchange="applyProspectFilters()">
+                  <option value="all">All countries</option>
+                  <option>USA</option>
+                  <option>UAE</option>
+                  <option>Canada</option>
+                  <option>Australia</option>
+                  <option>India</option>
+                  <option>Other</option>
+                </select>
+                <button class="btn alt" onclick="selectAllFilteredProspects()">
+                  Select all filtered
+                </button>
+                <button class="btn alt" onclick="clearProspectSelection()">
+                  Clear
+                </button>
+                <span id="prospectSelected" class="badge blue">0 selected</span>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        onchange="selectProspectPage(this.checked)"
+                      />
+                    </th>
+                    <th>Domain / company</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Country</th>
+                    <th>Added</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="prospectRows"></tbody>
+              </table>
+              <div class="results-foot">
+                <span id="prospectCount">0 prospects</span>
+                <label
+                  >Show
+                  <select
+                    id="prospectPageSize"
+                    onchange="prospectPage=1;applyProspectFilters()"
+                  >
+                    <option>10</option>
+                    <option selected>25</option>
+                    <option>50</option>
+                    <option>100</option>
+                    <option>250</option>
+                  </select>
+                  per page</label
+                >
+                <div id="prospectPager" class="pager"></div>
+              </div>
+            </div>
+          </section>
+          <section id="campaigns" class="page hide">
+            <div class="page-head">
+              <div>
+                <h2>Email campaign studio</h2>
+                <p>Build personalized campaigns from approved Prospects.</p>
+              </div>
+              <span class="badge orange">SMTP credentials pending</span>
+            </div>
+            <form id="campaignForm" class="card">
+              <div class="cols">
+                <div>
+                  <label class="field"
+                    >Campaign name<input
+                      name="name"
+                      placeholder="September website outreach"
+                      required /></label
+                  ><label class="field"
+                    >Provider<select name="provider">
+                      <option>HOSTINGER</option>
+                      <option>GMAIL</option>
+                    </select></label
+                  ><label class="field"
+                    >Subject<input
+                      name="subject"
+                      value="Website idea for {{domain}}"
+                      required /></label
+                  ><label class="field"
+                    >Random delay range<input
+                      name="delay"
+                      value="45,120"
+                      required
+                  /></label>
+                </div>
+                <div>
+                  <label class="field"
+                    >HTML email body<textarea name="htmlBody" rows="12">
+<p>Hi {{first_name}},</p><p>I noticed {{domain}} does not have a complete website yet.</p><p>Would you like a quick proposal?</p></textarea
+                    >
+                  </label>
+                  <p class="small">
+                    Variables: {{first_name}}, {{last_name}}, {{company}},
+                    {{domain}}, {{country}}
+                  </p>
+                </div>
+              </div>
+              <button class="btn">Save draft campaign</button>
+            </form>
+          </section>
+          <section id="users" class="page hide">
+            <div class="page-head">
+              <div>
+                <h2>Users and roles</h2>
+                <p>Super Admin controls who can access the system.</p>
+              </div>
+              <button class="btn" onclick="toggle('newUser')">
+                ＋ Create user
+              </button>
+            </div>
+            <form id="newUser" class="card hide" style="margin-bottom: 16px">
+              <div class="cols">
+                <label class="field"
+                  >Email<input name="email" type="email" required /></label
+                ><label class="field"
+                  >Temporary password<input
+                    name="password"
+                    minlength="12"
+                    required /></label
+                ><label class="field"
+                  >First name<input name="firstName" /></label
+                ><label class="field">Last name<input name="lastName" /></label
+                ><label class="field"
+                  >Role<select name="role">
+                    <option>ADMIN</option>
+                    <option>USER</option>
+                  </select></label
+                >
+              </div>
+              <button class="btn">Save user</button>
+            </form>
+            <div class="card table-card">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Last login</th>
+                  </tr>
+                </thead>
+                <tbody id="userRows"></tbody>
+              </table>
+            </div>
+          </section>
+          <section id="whatsapp" class="page hide">
+            <div class="page-head">
+              <div>
+                <h2>Meta WhatsApp</h2>
+                <p>Campaign workspace for approved Meta templates.</p>
+              </div>
+              <span class="badge blue">Integration ready</span>
+            </div>
+            <div class="card">
+              <div class="drop-icon">◉</div>
+              <h3 style="text-align: center; margin-top: 14px">
+                Connect Meta Cloud API later
+              </h3>
+              <p class="small" style="text-align: center">
+                Phone Number ID, Business Account ID and access token will be
+                stored as server secrets.
+              </p>
+            </div>
+          </section>
+          <section id="audit" class="page hide">
+            <div class="page-head">
+              <div>
+                <h2>Audit log</h2>
+                <p>Trace every important action across the workspace.</p>
+              </div>
+            </div>
+            <div class="card">
+              <span class="badge green">Recording enabled</span>
+              <p>
+                Login, user changes, imports, lead movement and campaign changes
+                are stored in MySQL.
+              </p>
+            </div>
+          </section>
+        </main>
+      </div>
+    </section>
+    <section id="process" class="process hide">
+      <div class="process-card">
+        <div class="process-head">
+          <div>
+            <div class="eyebrow">Import job in progress</div>
+            <h2 id="processTitle">Reading your domain file</h2>
+            <p id="processNote" class="small">
+              Please keep this page open while the upload completes.
+            </p>
+          </div>
+          <span id="processPct" class="badge blue">8%</span>
+        </div>
+        <div class="progress"><i id="progressBar"></i></div>
+        <div class="process-steps">
+          <div class="pstep active">1. Upload</div>
+          <div class="pstep">2. Normalize</div>
+          <div class="pstep">3. Privacy filter</div>
+          <div class="pstep">4. Website check</div>
+          <div class="pstep">5. Save results</div>
+        </div>
+        <div id="processResult" class="result-grid hide"></div>
+        <div style="display: flex; justify-content: flex-end; margin-top: 20px">
+          <button id="processDone" class="btn hide" onclick="finishProcess()">
+            View saved leads →
+          </button>
+        </div>
+      </div>
+    </section>
+    <script>
+      const $ = (s) => document.querySelector(s),
+        $$ = (s) => [...document.querySelectorAll(s)],
+        api = async (url, opt = {}) => {
+          const r = await fetch(url, { credentials: "include", ...opt }),
+            d = await r.json();
+          if (!r.ok)
+            throw Error(
+              typeof d.error === "string" ? d.error : JSON.stringify(d.error),
+            );
+          return d;
+        },
+        notice = (t, bad = false) =>
+          ($("#msg").innerHTML =
+            `<div class="notice ${bad ? "error" : ""}">${t}</div>`),
+        toggle = (id) => $("#" + id).classList.toggle("hide");
+      const titles = {
+        dashboard: ["Dashboard", "Growth overview"],
+        imports: ["Import & Filter", "Domain file filter"],
+        leads: ["Qualified Leads", "Review qualified domains"],
+        prospects: ["Prospects", "Approved opportunities"],
+        campaigns: ["Email Campaigns", "Campaign studio"],
+        users: ["Users & Roles", "Team access"],
+        whatsapp: ["WhatsApp", "Meta campaigns"],
+        audit: ["Audit Log", "Workspace history"],
+      };
+      let prospects = [],
+        prospectPage = 1,
+        currentProspectRows = [],
+        filteredProspectRows = [],
+        prospectSelection = new Set();
+      function go(id) {
+        $$(".nav button").forEach((x) =>
+          x.classList.toggle("active", x.dataset.page === id),
+        );
+        $$(".page").forEach((x) => x.classList.add("hide"));
+        $("#" + id).classList.remove("hide");
+        $("#crumb").textContent = titles[id][0];
+        $("#pageTitle").textContent = titles[id][1];
+      }
+      $("#nav").onclick = (e) => {
+        const b = e.target.closest("button[data-page]");
+        if (b) go(b.dataset.page);
+      };
+      $("#loginForm").onsubmit = async (e) => {
+        e.preventDefault();
+        try {
+          show(
+            await api("/api/auth/login", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                email: $("#email").value,
+                password: $("#password").value,
+              }),
+            }),
+          );
+        } catch (x) {
+          $("#loginMsg").innerHTML =
+            `<div class="notice error">${x.message}</div>`;
+        }
+      };
+      async function show(me) {
+        $("#login").classList.add("hide");
+        $("#app").classList.remove("hide");
+        $("#who").textContent = `${me.email} · ${me.role.replace("_", " ")}`;
+        await loadAll();
+      }
+      async function logout() {
+        await api("/api/auth/logout", { method: "POST" });
+        location.reload();
+      }
+      let leadData = [],
+        batchPoll,
+        leadPage = 1,
+        currentPageRows = [];
+      async function loadAll() {
+        const [u, l, p, s, b] = await Promise.all([
+          api("/api/users"),
+          api("/api/leads?status=QUALIFIED&limit=1000"),
+          api("/api/prospects"),
+          api("/api/leads/summary"),
+          api("/api/processing/status"),
+        ]);
+        leadData = l.items;
+        prospects = p.items;
+        $("#mUsers").textContent = u.items.length;
+        $("#mLeads").textContent = Number(s.total || 0).toLocaleString();
+        $("#mProspects").textContent = p.items.length;
+        $("#sTotal").textContent = Number(s.total || 0).toLocaleString();
+        $("#sPending").textContent = Number(s.pending || 0).toLocaleString();
+        $("#sNoWebsite").textContent = Number(
+          s.no_website || 0,
+        ).toLocaleString();
+        $("#sLive").textContent = Number(s.live_rejected || 0).toLocaleString();
+        $("#sRejected").textContent = Number(s.rejected || 0).toLocaleString();
+        $("#sQualified").textContent = Number(
+          s.qualified || 0,
+        ).toLocaleString();
+        renderBatch(b);
+        $("#userRows").innerHTML = u.items
+          .map(
+            (x) =>
+              `<tr><td><b>${x.email}</b></td><td>${x.first_name || ""} ${x.last_name || ""}</td><td><span class="badge blue">${x.role}</span></td><td><span class="badge green">${x.status}</span></td><td>${x.last_login_at || "Never"}</td></tr>`,
+          )
+          .join("");
+        applyLeadFilters();
+        applyProspectFilters();
+      }
+      function countryGroup(c) {
+        c = (c || "").toLowerCase();
+        if (
+          ["us", "usa", "united states", "united states of america"].includes(c)
+        )
+          return "USA";
+        if (["ae", "uae", "united arab emirates"].includes(c)) return "UAE";
+        if (["ca", "can", "canada"].includes(c)) return "Canada";
+        if (["au", "aus", "australia"].includes(c)) return "Australia";
+        if (["in", "ind", "india"].includes(c)) return "India";
+        return "Other";
+      }
+      function localDate(value) {
+        const d = new Date(value),
+          pad = (n) => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      }
+      function toggleProspectDates() {
+        const period = $("#prospectPeriod").value;
+        $("#prospectDay").classList.toggle("hide", period !== "day");
+        $("#prospectMonth").classList.toggle("hide", period !== "month");
+      }
+      function applyProspectFilters() {
+        if (!$("#prospectRows")) return;
+        const now = new Date(),
+          today = localDate(now),
+          thisMonth = today.slice(0, 7);
+        const q = ($("#prospectSearch")?.value || "").toLowerCase();
+        const period = $("#prospectPeriod")?.value || "all",
+          country = $("#prospectCountry")?.value || "all";
+        const allRows = (filteredProspectRows = prospects.filter((x) => {
+          const day = localDate(x.created_at),
+            month = day.slice(0, 7);
+          const dateOk =
+            period === "all" ||
+            (period === "today" && day === today) ||
+            (period === "day" && day === $("#prospectDay").value) ||
+            (period === "month" && month === $("#prospectMonth").value);
+          return (
+            dateOk &&
+            (country === "all" || countryGroup(x.country) === country) &&
+            `${x.domain} ${x.company || ""} ${x.first_name || ""} ${x.last_name || ""} ${x.email || ""}`
+              .toLowerCase()
+              .includes(q)
+          );
+        }));
+        $("#pAll").textContent = prospects.length.toLocaleString();
+        $("#pToday").textContent = prospects
+          .filter((x) => localDate(x.created_at) === today)
+          .length.toLocaleString();
+        $("#pMonth").textContent = prospects
+          .filter((x) => localDate(x.created_at).slice(0, 7) === thisMonth)
+          .length.toLocaleString();
+        $("#pFiltered").textContent = allRows.length.toLocaleString();
+        const pageSize = Number($("#prospectPageSize")?.value || 25),
+          pages = Math.max(1, Math.ceil(allRows.length / pageSize));
+        prospectPage = Math.min(prospectPage, pages);
+        const rows = (currentProspectRows = allRows.slice(
+          (prospectPage - 1) * pageSize,
+          prospectPage * pageSize,
+        ));
+        $("#prospectRows").innerHTML =
+          rows
+            .map(
+              (x) =>
+                `<tr><td><input class="prospectPick" type="checkbox" value="${x.id}" ${prospectSelection.has(Number(x.id)) ? "checked" : ""} onchange="toggleProspectSelection(${x.id},this.checked)"></td><td><b>${x.domain}</b><div class="small">${x.company || ""}</div></td><td>${x.first_name || ""} ${x.last_name || ""}</td><td>${x.email || "—"}</td><td>${x.country || "Unknown"}</td><td>${localDate(x.created_at)}</td><td><span class="badge green">${x.status}</span></td></tr>`,
+            )
+            .join("") ||
+          '<tr><td colspan="7" style="text-align:center;padding:45px;color:#64748b">No prospects match these filters.</td></tr>';
+        const from = allRows.length ? (prospectPage - 1) * pageSize + 1 : 0,
+          to = Math.min(prospectPage * pageSize, allRows.length);
+        $("#prospectCount").textContent =
+          `${from.toLocaleString()}–${to.toLocaleString()} of ${allRows.length.toLocaleString()} prospects`;
+        const buttons = [
+          `<button ${prospectPage === 1 ? "disabled" : ""} onclick="changeProspectPage(${prospectPage - 1})">‹ Previous</button>`,
+        ];
+        const start = Math.max(1, prospectPage - 2),
+          end = Math.min(pages, start + 4);
+        for (let p = Math.max(1, end - 4); p <= end; p++)
+          buttons.push(
+            `<button class="${p === prospectPage ? "active" : ""}" onclick="changeProspectPage(${p})">${p}</button>`,
+          );
+        buttons.push(
+          `<button ${prospectPage === pages ? "disabled" : ""} onclick="changeProspectPage(${prospectPage + 1})">Next ›</button>`,
+        );
+        $("#prospectPager").innerHTML = buttons.join("");
+        $("#prospectSelected").textContent =
+          `${prospectSelection.size.toLocaleString()} selected`;
+      }
+      function changeProspectPage(page) {
+        prospectPage = page;
+        applyProspectFilters();
+        $("#prospects").scrollIntoView({ behavior: "smooth" });
+      }
+      function toggleProspectSelection(id, checked) {
+        checked
+          ? prospectSelection.add(Number(id))
+          : prospectSelection.delete(Number(id));
+        $("#prospectSelected").textContent =
+          `${prospectSelection.size.toLocaleString()} selected`;
+      }
+      function selectProspectPage(checked) {
+        currentProspectRows.forEach((x) =>
+          checked
+            ? prospectSelection.add(Number(x.id))
+            : prospectSelection.delete(Number(x.id)),
+        );
+        applyProspectFilters();
+      }
+      function selectAllFilteredProspects() {
+        filteredProspectRows.forEach((x) =>
+          prospectSelection.add(Number(x.id)),
+        );
+        applyProspectFilters();
+        notice(
+          `${prospectSelection.size.toLocaleString()} prospect(s) selected across all pages`,
+        );
+      }
+      function clearProspectSelection() {
+        prospectSelection.clear();
+        applyProspectFilters();
+      }
+      function prepareCampaign() {
+        if (!prospectSelection.size)
+          return notice(
+            "Select prospects first, then create the campaign",
+            true,
+          );
+        go("campaigns");
+        notice(
+          `${prospectSelection.size.toLocaleString()} selected prospect(s) ready for this campaign`,
+        );
+      }
+      function selectedCountries() {
+        const picked = $$(".countryPick:checked").map((x) => x.value);
+        if ($("#otherCountry")?.checked) picked.push("Other");
+        return picked;
+      }
+      function renderBatch(b) {
+        clearTimeout(batchPoll);
+        if (!b) return;
+        const countries =
+          typeof b.countries === "string"
+            ? JSON.parse(b.countries)
+            : b.countries;
+        $$(".countryPick").forEach(
+          (x) => (x.checked = countries.includes(x.value)),
+        );
+        $("#otherCountry").checked = countries.includes("Other");
+        const total = Number(b.total_rows || 0),
+          done = Number(b.processed_rows || 0);
+        const pct = total
+          ? Math.min(100, Math.round((done / total) * 100))
+          : 100;
+        $("#batchBar").style.width = pct + "%";
+        $("#batchTitle").textContent =
+          b.status === "RUNNING"
+            ? `Processing ${countries.join(", ")} · ${done.toLocaleString()} / ${total.toLocaleString()}`
+            : `Completed ${countries.join(", ")} · ${total.toLocaleString()} leads checked`;
+        $("#batchNote").textContent =
+          b.status === "RUNNING"
+            ? `${pct}% complete · ${Number(b.qualified_rows).toLocaleString()} qualified · ${Number(b.rejected_rows).toLocaleString()} rejected`
+            : `Final: ${Number(b.qualified_rows).toLocaleString()} qualified · ${Number(b.rejected_rows).toLocaleString()} rejected`;
+        $("#startCountryBtn").disabled = b.status === "RUNNING";
+        if (b.status === "RUNNING")
+          batchPoll = setTimeout(async () => {
+            try {
+              const [latest, leads] = await Promise.all([
+                api("/api/processing/status"),
+                api("/api/leads?status=QUALIFIED&limit=1000"),
+              ]);
+              leadData = leads.items;
+              renderBatch(latest);
+              applyLeadFilters();
+              if (latest?.status === "COMPLETED") await loadAll();
+            } catch {}
+          }, 1500);
+      }
+      async function startCountryProcessing() {
+        const countries = selectedCountries();
+        if (!countries.length)
+          return notice("Select at least one country to process", true);
+        try {
+          const b = await api("/api/processing/start", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ countries }),
+          });
+          renderBatch(b);
+          notice(
+            `${Number(b.total_rows).toLocaleString()} pending ${countries.join(", ")} leads queued for processing`,
+          );
+        } catch (x) {
+          notice(x.message, true);
+        }
+      }
+      $("#exclusionForm").onsubmit = async (e) => {
+        e.preventDefault();
+        const pattern = new FormData(e.target).get("pattern");
+        try {
+          const d = await api("/api/exclusions", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ pattern }),
+          });
+          notice(
+            `Rule saved: “${d.pattern}” · ${Number(d.eliminated).toLocaleString()} existing lead(s) eliminated`,
+          );
+          e.target.reset();
+          await loadAll();
+        } catch (x) {
+          notice(x.message, true);
+        }
+      };
+      function filteredLeads() {
+        const q = ($("#leadSearch")?.value || "").toLowerCase(),
+          min = Number($("#scoreFilter")?.value || 0),
+          picked = new Set($$(".countryPick:checked").map((x) => x.value));
+        if ($("#otherCountry")?.checked) picked.add("Other");
+        return leadData.filter(
+          (x) =>
+            picked.has(countryGroup(x.country)) &&
+            Number(x.lead_score) >= min &&
+            (!$("#emailOnly")?.checked || x.email) &&
+            (!$("#phoneOnly")?.checked || x.phone) &&
+            `${x.domain} ${x.company || ""} ${x.first_name || ""} ${x.last_name || ""} ${x.email || ""}`
+              .toLowerCase()
+              .includes(q),
+        );
+      }
+      function applyLeadFilters() {
+        if (!$("#leadRows")) return;
+        const allRows = filteredLeads(),
+          pageSize = Number($("#pageSize")?.value || 25);
+        const pages = Math.max(1, Math.ceil(allRows.length / pageSize));
+        leadPage = Math.min(leadPage, pages);
+        const rows = (currentPageRows = allRows.slice(
+          (leadPage - 1) * pageSize,
+          leadPage * pageSize,
+        ));
+        $("#leadRows").innerHTML =
+          rows
+            .map(
+              (x) =>
+                `<tr data-lead="${x.id}"><td><input class="leadPick" type="checkbox" value="${x.id}"></td><td><b>${x.domain}</b><div class="small">${x.company || "Company unavailable"}</div></td><td><b>${x.first_name || "—"}</b><div class="small">${x.last_name || ""}</div></td><td>${x.email || "No email"}<div class="small">${x.phone || "No phone"}</div></td><td>${x.country || "Unknown"}</td><td><span class="badge green">${String(x.website_status).replaceAll("_", " ")}</span></td><td><span class="badge orange">${x.lead_score}/100</span></td></tr>`,
+            )
+            .join("") ||
+          '<tr><td colspan="7" style="text-align:center;padding:45px;color:#64748b">No qualified leads match these filters.</td></tr>';
+        const from = allRows.length ? (leadPage - 1) * pageSize + 1 : 0,
+          to = Math.min(leadPage * pageSize, allRows.length);
+        $("#leadCount").textContent =
+          `${from.toLocaleString()}–${to.toLocaleString()} of ${allRows.length.toLocaleString()} matching leads`;
+        const buttons = [];
+        buttons.push(
+          `<button ${leadPage === 1 ? "disabled" : ""} onclick="changeLeadPage(${leadPage - 1})">‹ Previous</button>`,
+        );
+        const start = Math.max(1, leadPage - 2),
+          end = Math.min(pages, start + 4);
+        for (let p = Math.max(1, end - 4); p <= end; p++)
+          buttons.push(
+            `<button class="${p === leadPage ? "active" : ""}" onclick="changeLeadPage(${p})">${p}</button>`,
+          );
+        buttons.push(
+          `<button ${leadPage === pages ? "disabled" : ""} onclick="changeLeadPage(${leadPage + 1})">Next ›</button>`,
+        );
+        $("#leadPager").innerHTML = buttons.join("");
+      }
+      function changeLeadPage(page) {
+        leadPage = page;
+        applyLeadFilters();
+        $("#leads").scrollIntoView({ behavior: "smooth" });
+      }
+      function selectVisible(checked) {
+        $$(".leadPick").forEach((x) => (x.checked = checked));
+      }
+      function exportLeads() {
+        const scope = $("#exportScope").value;
+        const selectedIds = new Set(
+          $$(".leadPick:checked").map((x) => Number(x.value)),
+        );
+        const rows =
+          scope === "selected"
+            ? currentPageRows.filter((x) => selectedIds.has(Number(x.id)))
+            : scope === "page"
+              ? currentPageRows
+              : filteredLeads();
+        if (!rows.length)
+          return notice(
+            scope === "selected"
+              ? "Select at least one lead to export"
+              : "No leads available to export",
+            true,
+          );
+        const cols = [
+          "domain",
+          "company",
+          "first_name",
+          "last_name",
+          "email",
+          "phone",
+          "country",
+          "state",
+          "city",
+          "website_status",
+          "lead_score",
+        ];
+        const csv = [
+            cols.join(","),
+            ...rows.map((r) =>
+              cols
+                .map((c) => `"${String(r[c] ?? "").replaceAll('"', '""')}"`)
+                .join(","),
+            ),
+          ].join("\r\n"),
+          a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+        a.download = `vyavas-${scope}-qualified-leads.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+      $("#newUser").onsubmit = async (e) => {
+        e.preventDefault();
+        try {
+          await api("/api/users", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(Object.fromEntries(new FormData(e.target))),
+          });
+          notice("User created successfully");
+          e.target.reset();
+          await loadAll();
+        } catch (x) {
+          notice(x.message, true);
+        }
+      };
+      let stageTimer, progressPoll;
+      function startProcess() {
+        const stages = [
+          ["Uploading file", "Securely transferring the selected file.", 12],
+          [
+            "Normalizing records",
+            "Mapping domains, names, email, phone and country.",
+            28,
+          ],
+          [
+            "Applying privacy rules",
+            "Removing protected, invalid and duplicate records.",
+            42,
+          ],
+          [
+            "Bulk saving to MySQL",
+            "Saving 500 records per database batch.",
+            55,
+          ],
+        ];
+        let i = 0;
+        $("#process").classList.remove("hide");
+        const tick = () => {
+          const s = stages[Math.min(i, 3)];
+          $("#processTitle").textContent = s[0];
+          $("#processNote").textContent = s[1];
+          $("#processPct").textContent = s[2] + "%";
+          $("#progressBar").style.width = s[2] + "%";
+          $$(".pstep").forEach(
+            (x, n) =>
+              (x.className =
+                "pstep " + (n < i ? "done" : n === i ? "active" : "")),
+          );
+          i++;
+          if (i < 4) stageTimer = setTimeout(tick, 700);
+        };
+        tick();
+        progressPoll = setInterval(async () => {
+          try {
+            const d = await api("/api/imports"),
+              j = d.items.find((x) => x.status === "PROCESSING");
+            if (!j || !j.total_rows) return;
+            const rowPct = Math.round((j.processed_rows / j.total_rows) * 100),
+              pct = Math.min(98, 55 + Math.round(rowPct * 0.43));
+            $("#processTitle").textContent = "Bulk saving to MySQL";
+            $("#processNote").textContent =
+              `${Number(j.processed_rows).toLocaleString()} of ${Number(j.total_rows).toLocaleString()} rows saved · ${rowPct}%`;
+            $("#processPct").textContent = pct + "%";
+            $("#progressBar").style.width = pct + "%";
+          } catch {}
+        }, 900);
+      }
+      function completeProcess(d) {
+        clearTimeout(stageTimer);
+        clearInterval(progressPoll);
+        $("#processTitle").textContent = "Import saved successfully";
+        $("#processNote").textContent =
+          "Website qualification continues automatically in the background.";
+        $("#processPct").textContent = "100%";
+        $("#progressBar").style.width = "100%";
+        $$(".pstep").forEach((x) => (x.className = "pstep done"));
+        $("#processResult").classList.remove("hide");
+        $("#processResult").innerHTML =
+          `<div class="card"><span class="small">Total rows</span><b style="display:block;font-size:24px">${d.total}</b></div><div class="card"><span class="small">Website checks</span><b style="display:block;font-size:24px">${d.pending}</b></div><div class="card"><span class="small">Rejected early</span><b style="display:block;font-size:24px">${d.rejected}</b></div>`;
+        $("#processDone").classList.remove("hide");
+      }
+      function finishProcess() {
+        $("#process").classList.add("hide");
+        $("#processDone").classList.add("hide");
+        $("#processResult").classList.add("hide");
+        go("leads");
+        loadAll();
+      }
+      $("#importForm").onsubmit = async (e) => {
+        e.preventDefault();
+        startProcess();
+        try {
+          const d = await api("/api/imports", {
+            method: "POST",
+            body: new FormData(e.target),
+          });
+          completeProcess(d);
+        } catch (x) {
+          clearTimeout(stageTimer);
+          clearInterval(progressPoll);
+          $("#process").classList.add("hide");
+          notice(x.message, true);
+        }
+      };
+      async function moveProspects() {
+        const leadIds = $$(".leadPick:checked").map((x) => Number(x.value));
+        if (!leadIds.length)
+          return notice("Select at least one qualified lead", true);
+        await api("/api/leads/move-to-prospects", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ leadIds }),
+        });
+        notice(`${leadIds.length} lead(s) moved to Prospects`);
+        await loadAll();
+      }
+      async function moveFilteredProspects() {
+        const countries = selectedCountries();
+        if (!countries.length)
+          return notice("Select at least one country", true);
+        const payload = {
+          countries,
+          minScore: Number($("#scoreFilter").value || 0),
+          emailOnly: $("#emailOnly").checked,
+          phoneOnly: $("#phoneOnly").checked,
+        };
+        try {
+          const d = await api("/api/leads/move-filtered-to-prospects", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          notice(
+            `${Number(d.moved || 0).toLocaleString()} filtered lead(s) moved to Prospects`,
+          );
+          await loadAll();
+        } catch (x) {
+          notice(x.message, true);
+        }
+      }
+      $("#campaignForm").onsubmit = async (e) => {
+        e.preventDefault();
+        const prospectIds = [...prospectSelection];
+        if (!prospectIds.length)
+          return notice("Select prospects in the Prospects tab first", true);
+        const f = Object.fromEntries(new FormData(e.target)),
+          [min, max] = String(f.delay).split(",").map(Number);
+        try {
+          const d = await api("/api/campaigns", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: f.name,
+              provider: f.provider,
+              subject: f.subject,
+              htmlBody: f.htmlBody,
+              prospectIds,
+              minDelaySeconds: min,
+              maxDelaySeconds: max,
+              hourlyLimit: 30,
+              dailyLimit: 200,
+            }),
+          });
+          notice(`Campaign #${d.id} saved as DRAFT`);
+        } catch (x) {
+          notice(x.message, true);
+        }
+      };
+      function filterRows(id, q) {
+        q = q.toLowerCase();
+        $$("#" + id + " tr").forEach(
+          (r) =>
+            (r.style.display = r.textContent.toLowerCase().includes(q)
+              ? ""
+              : "none"),
+        );
+      }
+      api("/api/auth/me")
+        .then(show)
+        .catch(() => {});
+    </script>
+  </body>
+</html>
