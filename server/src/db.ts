@@ -6,6 +6,7 @@ export const db = mysql.createPool({
   database: config.MYSQL_DATABASE,
   user: config.MYSQL_USER,
   password: config.MYSQL_PASSWORD,
+  charset: 'utf8mb4_unicode_ci',
   connectionLimit: 12,
   timezone: 'Z',
   decimalNumbers: true,

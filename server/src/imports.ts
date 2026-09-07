@@ -5,6 +5,12 @@ import {z} from 'zod';
 import { allow } from './auth.js';
 import { audit, db } from './db.js';
 import {config} from './config.js';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { unlink } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 type R = Record<string, string>;
 const k = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, ''),
   c = (v: unknown) =>
@@ -79,9 +85,33 @@ export async function importRoutes(app: FastifyInstance) {
       if (!file) return reply.code(400).send({ error: 'File required' });
       const extension=file.filename.toLowerCase().split('.').pop();
       if(!extension||!['csv','xlsx'].includes(extension))return reply.code(400).send({error:'Only CSV and XLSX files are supported'});
-      const buf = await file.toBuffer();
       const mode = String((file.fields as any)?.mode?.value ?? 'MERGE').toUpperCase();
       if (!['MERGE','FRESH'].includes(mode)) return reply.code(400).send({error:'Invalid import mode'});
+      if (extension === 'xlsx') {
+        const tempPath = join(tmpdir(), `vyavas-${randomUUID()}.xlsx`);
+        await pipeline(file.file, createWriteStream(tempPath));
+        const fileSize = file.file.bytesRead;
+        const [queuedJob] = await db.execute<any>(
+          'INSERT INTO import_jobs(created_by,file_name,file_size,status,total_rows) VALUES(?,?,?,?,0)',
+          [req.user.id, file.filename, fileSize, 'UPLOADED'],
+        );
+        setImmediate(() => {
+          void processXlsxImport(queuedJob.insertId, tempPath, mode as 'MERGE'|'FRESH', req.user.id, file.filename, req.ip)
+            .catch((error) => app.log.error({ err: error, importJobId: queuedJob.insertId }, 'Background import failed'))
+            .finally(() => unlink(tempPath).catch(() => {}));
+        });
+        return reply.code(202).send({
+          id: queuedJob.insertId,
+          total: 0,
+          pending: 0,
+          rejected: 0,
+          duplicatesRemoved: 0,
+          mode,
+          queued: true,
+          message: 'Upload accepted. The Excel file is processing in the background.',
+        });
+      }
+      const buf = await file.toBuffer();
       let headers: string[] = [],
         rows: R[] = [];
       if (extension==='csv')
@@ -258,4 +288,128 @@ export async function importRoutes(app: FastifyInstance) {
       return{removed,domainDuplicates:Number(domainResult.affectedRows),emailDuplicates:Number(emailResult.affectedRows)};
     }catch(error){await conn.rollback();throw error}finally{conn.release()}
   });
+}
+
+async function processXlsxImport(
+  jobId: number,
+  path: string,
+  mode: 'MERGE'|'FRESH',
+  userId: number,
+  fileName: string,
+  ip: string,
+) {
+  try {
+    await db.execute("UPDATE import_jobs SET status='PROCESSING' WHERE id=?", [jobId]);
+    const [ruleRows] = await db.query<any[]>('SELECT pattern FROM exclusion_rules');
+    const exclusionPatterns = ruleRows.map((x) => String(x.pattern).toLowerCase());
+    const reader = new ExcelJS.stream.xlsx.WorkbookReader(createReadStream(path), {
+      entries: 'emit',
+      sharedStrings: 'cache',
+      hyperlinks: 'ignore',
+      styles: 'ignore',
+      worksheets: 'emit',
+    });
+    let headers: string[] = [];
+    let mapping: Record<string,string> = {};
+    let total = 0, pending = 0, rejected = 0, processed = 0;
+    const batch: unknown[][] = [];
+    const flush = async () => {
+      if (!batch.length) return;
+      const placeholders = batch.map(() => '(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').join(',');
+      await db.query(
+        `INSERT IGNORE INTO leads(import_job_id,domain,first_name,last_name,company,email,phone,country,state,city,postal_code,status,rejection_reason,discovery_date) VALUES ${placeholders}`,
+        batch.flat(),
+      );
+      processed += batch.length;
+      batch.length = 0;
+      await db.execute(
+        'UPDATE import_jobs SET total_rows=?,processed_rows=?,qualified_rows=?,rejected_rows=? WHERE id=?',
+        [total, processed, pending, rejected, jobId],
+      );
+    };
+    let foundWorksheet = false;
+    for await (const worksheet of reader) {
+      foundWorksheet = true;
+      for await (const row of worksheet) {
+        if (row.number === 1) {
+          headers = (row.values as unknown[]).slice(1).map(c);
+          mapping = Object.fromEntries(Object.entries(a).map(([field, aliases]) => [field, find(headers, aliases)]));
+          if (!mapping.domain) throw new Error('Domain column not detected');
+          continue;
+        }
+        total++;
+        if (total > config.MAX_IMPORT_ROWS) throw new Error(`Import exceeds the ${config.MAX_IMPORT_ROWS.toLocaleString()} row limit`);
+        const values = (row.values as unknown[]).slice(1);
+        const record = Object.fromEntries(headers.map((header, index) => [header, c(values[index])])) as R;
+        const value = (field: string) => record[mapping[field] ?? ''] ?? '';
+        const domain = norm(value('domain'));
+        const email = value('email').toLowerCase();
+        const full = value('name');
+        const parts = full.split(/\s+/);
+        const first = value('first') || parts.shift() || '';
+        const last = value('last') || parts.join(' ');
+        const company = value('company');
+        const privacy = [value('privacy'), full, company, email].join(' ').toLowerCase();
+        const searchable = [domain, email, full, company, first, last].join(' ').toLowerCase();
+        let status = 'PENDING';
+        let reason: string|null = null;
+        if (privateWords.some((word) => privacy.includes(word))) {
+          status = 'REJECTED'; reason = 'Privacy protected';
+        } else if (exclusionPatterns.some((pattern) => searchable.includes(pattern))) {
+          status = 'REJECTED'; reason = 'User exclusion rule';
+        } else if (!valid(domain) || !email || !validEmail(email) || !trustedFreeEmail(email)) {
+          status = 'REJECTED';
+          reason = !valid(domain) ? 'Invalid domain' : !email ? 'Email required' : !validEmail(email) ? 'Invalid or random email' : 'Only trusted free email accepted';
+        }
+        status === 'PENDING' ? pending++ : rejected++;
+        batch.push([
+          jobId, domain, first || null, last || null, company || null, email || null,
+          value('phone') || null, value('country') || null, value('state') || null,
+          value('city') || null, value('postal') || null, status, reason,
+          value('created').slice(0, 10) || null,
+        ]);
+        if (batch.length >= 500) await flush();
+      }
+      break;
+    }
+    if (!foundWorksheet || !headers.length) throw new Error('The uploaded file has no worksheet');
+    await flush();
+    await db.execute(
+      `UPDATE leads newer JOIN leads older ON older.domain=newer.domain AND older.id<newer.id
+       JOIN import_jobs older_job ON older_job.id=older.import_job_id
+       SET newer.status='REJECTED',newer.rejection_reason='Duplicate domain'
+       WHERE newer.import_job_id=? AND newer.status='PENDING' AND older.status IN ('PENDING','QUALIFIED','MOVED_TO_PROSPECT')
+         AND (older.import_job_id=? OR (?='MERGE' AND older_job.archived_at IS NULL))`,
+      [jobId, jobId, mode],
+    );
+    await db.execute(
+      `UPDATE leads newer JOIN leads older ON older.email=newer.email AND older.id<newer.id
+       JOIN import_jobs older_job ON older_job.id=older.import_job_id
+       SET newer.status='REJECTED',newer.rejection_reason='Duplicate email'
+       WHERE newer.import_job_id=? AND newer.status='PENDING' AND newer.email IS NOT NULL AND newer.email<>''
+         AND older.status IN ('PENDING','QUALIFIED','MOVED_TO_PROSPECT')
+         AND (older.import_job_id=? OR (?='MERGE' AND older_job.archived_at IS NULL))`,
+      [jobId, jobId, mode],
+    );
+    const [counts] = await db.execute<any[]>(
+      `SELECT COUNT(*) total,SUM(status='PENDING') pending,SUM(status='REJECTED') rejected
+       FROM leads WHERE import_job_id=?`, [jobId],
+    );
+    const saved = Number(counts[0]?.total ?? 0);
+    const finalPending = Number(counts[0]?.pending ?? 0);
+    const finalRejected = Number(counts[0]?.rejected ?? 0);
+    if (mode === 'FRESH') {
+      await db.execute('UPDATE import_jobs SET archived_at=NOW(3) WHERE archived_at IS NULL AND id<>?', [jobId]);
+      await db.execute("UPDATE processing_batches SET status='CANCELLED' WHERE status='RUNNING'");
+    }
+    await db.execute(
+      "UPDATE import_jobs SET status='COMPLETED',total_rows=?,processed_rows=?,qualified_rows=?,rejected_rows=? WHERE id=?",
+      [total, saved, finalPending, finalRejected, jobId],
+    );
+    await audit(userId, 'IMPORT_FILE', 'IMPORT_JOB', String(jobId), { file: fileName, rows: total }, ip);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Import failed';
+    await db.execute("UPDATE import_jobs SET status='FAILED',error_message=? WHERE id=?", [message.slice(0, 1000), jobId]).catch(() => {});
+    throw error;
+  }
 }
