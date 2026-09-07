@@ -11,6 +11,7 @@ import { config } from './config.js';
 import { audit, db } from './db.js';
 import { allow, requireUser } from './auth.js';
 import { importRoutes } from './imports.js';
+async function start() {
 const dashboardHtml = await readFile(
   new URL('../public/index.html', import.meta.url),
   'utf8',
@@ -504,6 +505,13 @@ for(const signal of ['SIGINT','SIGTERM'] as const)process.once(signal,async()=>{
   await db.end();
   process.exit(0);
 });
+}
+
+void start().catch((error) => {
+  console.error('Application startup failed', error);
+  process.exit(1);
+});
+
 function chunk<T>(a: T[], n: number) {
   const out: T[][] = [];
   for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n));
