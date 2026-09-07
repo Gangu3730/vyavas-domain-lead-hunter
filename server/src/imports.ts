@@ -1,7 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import ExcelJS from 'exceljs';
+import {parse} from 'csv-parse/sync';
+import {z} from 'zod';
 import { allow } from './auth.js';
 import { audit, db } from './db.js';
+import {config} from './config.js';
 type R = Record<string, string>;
 const k = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, ''),
   c = (v: unknown) =>
@@ -23,6 +26,7 @@ const a = {
   country: ['country', 'registrantcountry'],
   state: ['state', 'registrantstate'],
   city: ['city', 'registrantcity'],
+  postal: ['postalcode', 'postcode', 'pincode', 'zip', 'zipcode', 'registrantpostalcode', 'registrantzip'],
   created: ['createddate', 'created', 'creationdate', 'registrationdate'],
   privacy: ['privacy', 'proxy', 'redacted'],
 };
@@ -63,20 +67,8 @@ const privateWords = [
   'data protected',
 ];
 function csv(t: string) {
-  const lines = t
-      .replace(/^\uFEFF/, '')
-      .split(/\r?\n/)
-      .filter(Boolean),
-    headers = (lines.shift() ?? '')
-      .split(',')
-      .map((x) => x.replace(/^"|"$/g, ''));
-  return {
-    headers,
-    rows: lines.map((line) => {
-      const cells = line.split(',').map((x) => x.replace(/^"|"$/g, '').trim());
-      return Object.fromEntries(headers.map((h, i) => [h, cells[i] ?? '']));
-    }),
-  };
+  const rows=parse(t,{bom:true,columns:true,skip_empty_lines:true,relax_column_count:true,trim:true}) as R[];
+  return {headers:rows[0]?Object.keys(rows[0]):[],rows};
 }
 export async function importRoutes(app: FastifyInstance) {
   app.post(
@@ -85,10 +77,14 @@ export async function importRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const file = await req.file();
       if (!file) return reply.code(400).send({ error: 'File required' });
+      const extension=file.filename.toLowerCase().split('.').pop();
+      if(!extension||!['csv','xlsx'].includes(extension))return reply.code(400).send({error:'Only CSV and XLSX files are supported'});
       const buf = await file.toBuffer();
+      const mode = String((file.fields as any)?.mode?.value ?? 'MERGE').toUpperCase();
+      if (!['MERGE','FRESH'].includes(mode)) return reply.code(400).send({error:'Invalid import mode'});
       let headers: string[] = [],
         rows: R[] = [];
-      if (file.filename.toLowerCase().endsWith('.csv'))
+      if (extension==='csv')
         ({ headers, rows } = csv(buf.toString('utf8')));
       else {
         const wb = new ExcelJS.Workbook();
@@ -98,10 +94,13 @@ export async function importRoutes(app: FastifyInstance) {
         headers = (ws.getRow(1).values as unknown[]).slice(1).map(c);
         ws.eachRow((row, n) => {
           if (n === 1) return;
+          if(rows.length>=config.MAX_IMPORT_ROWS)throw new Error(`Import exceeds the ${config.MAX_IMPORT_ROWS.toLocaleString()} row limit`);
           const vals = (row.values as unknown[]).slice(1);
           rows.push(Object.fromEntries(headers.map((h, i) => [h, c(vals[i])])));
         });
       }
+      if(rows.length>config.MAX_IMPORT_ROWS)return reply.code(413).send({error:`Import exceeds the ${config.MAX_IMPORT_ROWS.toLocaleString()} row limit`});
+      if(!rows.length)return reply.code(400).send({error:'The uploaded file has no data rows'});
       const m = Object.fromEntries(
         Object.entries(a).map(([f, v]) => [f, find(headers, v)]),
       ) as Record<string, string>;
@@ -112,11 +111,12 @@ export async function importRoutes(app: FastifyInstance) {
         'INSERT INTO import_jobs(created_by,file_name,file_size,status,total_rows) VALUES(?,?,?,?,?)',
         [req.user.id, file.filename, buf.length, 'PROCESSING', rows.length],
       );
+      try {
       const [ruleRows] = await db.query<any[]>('SELECT pattern FROM exclusion_rules');
       const exclusionPatterns = ruleRows.map((x) => String(x.pattern).toLowerCase());
       let pending = 0, rejected = 0, processed = 0;
       const batch:unknown[][]=[];
-      const flush=async()=>{if(!batch.length)return;const placeholders=batch.map(()=>'(?,?,?,?,?,?,?,?,?,?,?,?,?)').join(',');await db.query(`INSERT IGNORE INTO leads(import_job_id,domain,first_name,last_name,company,email,phone,country,state,city,status,rejection_reason,discovery_date) VALUES ${placeholders}`,batch.flat());processed+=batch.length;batch.length=0;await db.execute('UPDATE import_jobs SET processed_rows=?,qualified_rows=?,rejected_rows=? WHERE id=?',[processed,pending,rejected,job.insertId])};
+      const flush=async()=>{if(!batch.length)return;const placeholders=batch.map(()=>'(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').join(',');await db.query(`INSERT IGNORE INTO leads(import_job_id,domain,first_name,last_name,company,email,phone,country,state,city,postal_code,status,rejection_reason,discovery_date) VALUES ${placeholders}`,batch.flat());processed+=batch.length;batch.length=0;await db.execute('UPDATE import_jobs SET processed_rows=?,qualified_rows=?,rejected_rows=? WHERE id=?',[processed,pending,rejected,job.insertId])};
       for (const r of rows) {
         const d = norm(value(r,'domain')),
           email = value(r,'email').toLowerCase(),
@@ -154,6 +154,7 @@ export async function importRoutes(app: FastifyInstance) {
             value(r,'country') || null,
             value(r,'state') || null,
             value(r,'city') || null,
+            value(r,'postal') || null,
             status,
             reason,
             value(r,'created').slice(0, 10) || null,
@@ -163,13 +164,37 @@ export async function importRoutes(app: FastifyInstance) {
       await flush();
       await db.execute(
         `UPDATE leads newer JOIN leads older ON older.domain=newer.domain AND older.id<newer.id
+         JOIN import_jobs older_job ON older_job.id=older.import_job_id
          SET newer.status='REJECTED',newer.rejection_reason='Duplicate domain'
-         WHERE newer.import_job_id=? AND older.status<>'DELETED'`,
-        [job.insertId],
+         WHERE newer.import_job_id=? AND newer.status='PENDING' AND older.status IN ('PENDING','QUALIFIED','MOVED_TO_PROSPECT')
+           AND (older.import_job_id=? OR (?='MERGE' AND older_job.archived_at IS NULL))`,
+        [job.insertId,job.insertId,mode],
       );
       await db.execute(
+        `UPDATE leads newer JOIN leads older ON older.email=newer.email AND older.id<newer.id
+         JOIN import_jobs older_job ON older_job.id=older.import_job_id
+         SET newer.status='REJECTED',newer.rejection_reason='Duplicate email'
+         WHERE newer.import_job_id=? AND newer.status='PENDING' AND newer.email IS NOT NULL AND newer.email<>''
+           AND older.status IN ('PENDING','QUALIFIED','MOVED_TO_PROSPECT')
+           AND (older.import_job_id=? OR (?='MERGE' AND older_job.archived_at IS NULL))`,
+        [job.insertId,job.insertId,mode],
+      );
+      const [finalCounts] = await db.execute<any[]>(
+        `SELECT COUNT(*) total,
+          SUM(status='PENDING') pending,
+          SUM(status='REJECTED') rejected,
+          SUM(rejection_reason IN ('Duplicate domain','Duplicate email')) duplicate_rows
+         FROM leads WHERE import_job_id=?`,
+        [job.insertId],
+      );
+      const saved=Number(finalCounts[0]?.total??0), finalPending=Number(finalCounts[0]?.pending??0), finalRejected=Number(finalCounts[0]?.rejected??0), duplicateRows=Number(finalCounts[0]?.duplicate_rows??0);
+      if(mode==='FRESH'){
+        await db.execute('UPDATE import_jobs SET archived_at=NOW(3) WHERE archived_at IS NULL AND id<>?',[job.insertId]);
+        await db.execute("UPDATE processing_batches SET status='CANCELLED' WHERE status='RUNNING'");
+      }
+      await db.execute(
         "UPDATE import_jobs SET status='COMPLETED',processed_rows=?,qualified_rows=?,rejected_rows=? WHERE id=?",
-        [rows.length, pending, rejected, job.insertId],
+        [saved, finalPending, finalRejected, job.insertId],
       );
       await audit(
         req.user.id,
@@ -181,7 +206,12 @@ export async function importRoutes(app: FastifyInstance) {
       );
       return reply
         .code(201)
-        .send({ id: job.insertId, total: rows.length, pending, rejected });
+        .send({ id: job.insertId, total: saved, pending:finalPending, rejected:finalRejected, duplicatesRemoved:rows.length-saved+duplicateRows, mode });
+      } catch(error) {
+        const message=error instanceof Error?error.message:'Import failed';
+        await db.execute("UPDATE import_jobs SET status='FAILED',error_message=? WHERE id=?",[message.slice(0,1000),job.insertId]).catch(()=>{});
+        throw error;
+      }
     },
   );
   app.get(
@@ -194,4 +224,38 @@ export async function importRoutes(app: FastifyInstance) {
       return { items };
     },
   );
+  app.patch('/api/imports/:id/archive',{preHandler:allow('SUPER_ADMIN','ADMIN')},async(req)=>{
+    const id=Number((req.params as any).id);
+    if(!Number.isInteger(id)||id<1)throw new Error('Invalid import id');
+    await db.execute('UPDATE import_jobs SET archived_at=COALESCE(archived_at,NOW(3)) WHERE id=?',[id]);
+    await audit(req.user.id,'ARCHIVE_IMPORT','IMPORT_JOB',String(id),{},req.ip);
+    return{ok:true};
+  });
+  app.post('/api/imports/deduplicate',{preHandler:allow('SUPER_ADMIN','ADMIN')},async(req)=>{
+    const body=z.object({importJobId:z.number().int().positive().nullable().optional()}).parse(req.body??{});
+    const importJobId=body.importJobId??null;
+    const conn=await db.getConnection();
+    try{
+      await conn.beginTransaction();
+      const targetScope=importJobId?' AND newer.import_job_id=?':' AND newer_job.archived_at IS NULL';
+      const params=importJobId?[importJobId]:[];
+      const [domainResult]=await conn.execute<any>(`UPDATE leads newer
+        JOIN import_jobs newer_job ON newer_job.id=newer.import_job_id
+        JOIN leads older ON older.domain=newer.domain AND older.id<newer.id
+        JOIN import_jobs older_job ON older_job.id=older.import_job_id AND older_job.archived_at IS NULL
+        SET newer.status='REJECTED',newer.rejection_reason='Duplicate domain'
+        WHERE newer.status IN ('PENDING','QUALIFIED') AND older.status IN ('PENDING','QUALIFIED','MOVED_TO_PROSPECT')${targetScope}`,params);
+      const [emailResult]=await conn.execute<any>(`UPDATE leads newer
+        JOIN import_jobs newer_job ON newer_job.id=newer.import_job_id
+        JOIN leads older ON older.email=newer.email AND older.id<newer.id
+        JOIN import_jobs older_job ON older_job.id=older.import_job_id AND older_job.archived_at IS NULL
+        SET newer.status='REJECTED',newer.rejection_reason='Duplicate email'
+        WHERE newer.status IN ('PENDING','QUALIFIED') AND newer.email IS NOT NULL AND newer.email<>''
+          AND older.status IN ('PENDING','QUALIFIED','MOVED_TO_PROSPECT')${targetScope}`,params);
+      await conn.commit();
+      const removed=Number(domainResult.affectedRows)+Number(emailResult.affectedRows);
+      await audit(req.user.id,'DEDUPLICATE_LEADS','IMPORT_JOB',importJobId?String(importJobId):null,{removed},req.ip);
+      return{removed,domainDuplicates:Number(domainResult.affectedRows),emailDuplicates:Number(emailResult.affectedRows)};
+    }catch(error){await conn.rollback();throw error}finally{conn.release()}
+  });
 }

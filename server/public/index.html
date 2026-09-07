@@ -829,6 +829,16 @@
               <div class="drop-icon">⇧</div>
               <h2 style="margin-bottom: 6px">Upload domain database</h2>
               <p class="small">Drag or choose an Excel/CSV file up to 50 MB.</p>
+              <label
+                class="field"
+                style="max-width: 420px; margin: 18px auto; text-align: left"
+                >How should this upload be added?<select name="mode">
+                  <option value="FRESH">
+                    Archive previous data & start fresh
+                  </option>
+                  <option value="MERGE">Merge with active uploads</option>
+                </select></label
+              >
               <input
                 id="fileInput"
                 name="file"
@@ -836,7 +846,7 @@
                 accept=".csv,.xlsx"
                 required
                 style="margin: 18px"
-              /><br /><button class="btn">Upload & start processing</button>
+              /><br /><button class="btn">Upload & save dataset</button>
             </form>
             <div id="importResult"></div>
           </section>
@@ -870,6 +880,37 @@
                   Bulk move filtered to Prospects →
                 </button>
               </div>
+            </div>
+            <div
+              class="card"
+              style="
+                margin-bottom: 16px;
+                display: flex;
+                align-items: end;
+                gap: 12px;
+                flex-wrap: wrap;
+              "
+            >
+              <label class="field" style="margin: 0; flex: 1; min-width: 300px"
+                >Dataset / uploaded sheet<select
+                  id="datasetSelect"
+                  onchange="changeDataset(this.value)"
+                >
+                  <option value="">All active uploads</option>
+                </select></label
+              >
+              <button
+                id="archiveDatasetBtn"
+                class="btn alt"
+                onclick="archiveSelectedDataset()"
+                disabled
+              >
+                Archive selected upload
+              </button>
+              <button class="btn alt" onclick="removeDuplicates()">
+                Remove duplicates
+              </button>
+              <span id="datasetMeta" class="small">Current active data</span>
             </div>
             <div
               class="card"
@@ -955,7 +996,28 @@
                   <option value="60">Score ≥ 60</option>
                   <option value="75">Score ≥ 75</option>
                   <option value="90">Score ≥ 90</option></select
-                ><label class="checkchip"
+                ><input
+                  id="stateFilter"
+                  class="search"
+                  style="max-width: 150px"
+                  placeholder="State"
+                  oninput="leadPage=1;applyLeadFilters()"
+                />
+                <input
+                  id="cityFilter"
+                  class="search"
+                  style="max-width: 150px"
+                  placeholder="City"
+                  oninput="leadPage=1;applyLeadFilters()"
+                />
+                <input
+                  id="postalFilter"
+                  class="search"
+                  style="max-width: 130px"
+                  placeholder="Pincode / ZIP"
+                  oninput="leadPage=1;applyLeadFilters()"
+                />
+                <label class="checkchip"
                   ><input
                     class="countryPick"
                     type="checkbox"
@@ -1028,6 +1090,7 @@
                     <th>First / last name</th>
                     <th>Email / phone</th>
                     <th>Country</th>
+                    <th>State / city / pincode</th>
                     <th>Website gate</th>
                     <th>Score</th>
                   </tr>
@@ -1082,6 +1145,13 @@
                 ><b id="pFiltered">0</b>
               </div>
             </div>
+            <div class="card" style="margin-bottom: 16px">
+              <b>Location performance</b>
+              <div id="pTopLocations" class="small" style="margin-top: 8px">
+                Move qualified leads to Prospects to compare conversion by
+                location.
+              </div>
+            </div>
             <div class="card table-card">
               <div class="filterbar">
                 <input
@@ -1122,6 +1192,27 @@
                   <option>India</option>
                   <option>Other</option>
                 </select>
+                <input
+                  id="prospectState"
+                  class="search"
+                  style="max-width: 140px"
+                  placeholder="State"
+                  oninput="prospectPage=1;applyProspectFilters()"
+                />
+                <input
+                  id="prospectCity"
+                  class="search"
+                  style="max-width: 140px"
+                  placeholder="City"
+                  oninput="prospectPage=1;applyProspectFilters()"
+                />
+                <input
+                  id="prospectPostal"
+                  class="search"
+                  style="max-width: 125px"
+                  placeholder="Pincode / ZIP"
+                  oninput="prospectPage=1;applyProspectFilters()"
+                />
                 <button class="btn alt" onclick="selectAllFilteredProspects()">
                   Select all filtered
                 </button>
@@ -1143,6 +1234,7 @@
                     <th>Name</th>
                     <th>Email</th>
                     <th>Country</th>
+                    <th>State / city / pincode</th>
                     <th>Added</th>
                     <th>Status</th>
                   </tr>
@@ -1216,6 +1308,12 @@
               </div>
               <button class="btn">Save draft campaign</button>
             </form>
+            <div class="card table-card" style="margin-top:16px">
+              <table>
+                <thead><tr><th>Campaign</th><th>Provider</th><th>Recipients</th><th>Sent / failed</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody id="campaignRows"><tr><td colspan="6" class="small">No campaigns yet.</td></tr></tbody>
+              </table>
+            </div>
           </section>
           <section id="users" class="page hide">
             <div class="page-head">
@@ -1281,6 +1379,12 @@
                 stored as server secrets.
               </p>
             </div>
+            <div class="card table-card" style="margin-top:16px">
+              <table>
+                <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Entity</th><th>IP address</th></tr></thead>
+                <tbody id="auditRows"><tr><td colspan="5" class="small">No activity recorded.</td></tr></tbody>
+              </table>
+            </div>
           </section>
           <section id="audit" class="page hide">
             <div class="page-head">
@@ -1331,6 +1435,11 @@
     <script>
       const $ = (s) => document.querySelector(s),
         $$ = (s) => [...document.querySelectorAll(s)],
+        esc = (value) =>
+          String(value ?? "").replace(
+            /[&<>"']/g,
+            (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char],
+          ),
         api = async (url, opt = {}) => {
           const r = await fetch(url, { credentials: "include", ...opt }),
             d = await r.json();
@@ -1340,9 +1449,12 @@
             );
           return d;
         },
-        notice = (t, bad = false) =>
-          ($("#msg").innerHTML =
-            `<div class="notice ${bad ? "error" : ""}">${t}</div>`),
+        notice = (t, bad = false) => {
+          const box = document.createElement("div");
+          box.className = `notice ${bad ? "error" : ""}`;
+          box.textContent = String(t);
+          $("#msg").replaceChildren(box);
+        },
         toggle = (id) => $("#" + id).classList.toggle("hide");
       const titles = {
         dashboard: ["Dashboard", "Growth overview"],
@@ -1355,6 +1467,7 @@
         audit: ["Audit Log", "Workspace history"],
       };
       let prospects = [],
+        currentUserRole = null,
         prospectPage = 1,
         currentProspectRows = [],
         filteredProspectRows = [],
@@ -1386,35 +1499,63 @@
             }),
           );
         } catch (x) {
-          $("#loginMsg").innerHTML =
-            `<div class="notice error">${x.message}</div>`;
+          $("#loginMsg").textContent = x.message;
         }
       };
       async function show(me) {
+        currentUserRole = me.role;
+        history.scrollRestoration = "manual";
+        window.scrollTo(0, 0);
+        $("#msg").innerHTML = "";
         $("#login").classList.add("hide");
         $("#app").classList.remove("hide");
         $("#who").textContent = `${me.email} · ${me.role.replace("_", " ")}`;
+        const canManage = ["SUPER_ADMIN", "ADMIN"].includes(me.role);
+        ["imports", "campaigns", "whatsapp"].forEach((page) =>
+          $(`#nav button[data-page="${page}"]`)?.classList.toggle("hide", !canManage),
+        );
+        ["users", "audit"].forEach((page) =>
+          $(`#nav button[data-page="${page}"]`)?.classList.toggle("hide", me.role !== "SUPER_ADMIN"),
+        );
+        go("dashboard");
         await loadAll();
+        window.scrollTo(0, 0);
       }
       async function logout() {
+        clearTimeout(batchPoll);
         await api("/api/auth/logout", { method: "POST" });
-        location.reload();
+        history.replaceState(null, "", "/");
+        window.scrollTo(0, 0);
+        location.replace("/");
       }
       let leadData = [],
         batchPoll,
         leadPage = 1,
-        currentPageRows = [];
+        currentPageRows = [],
+        selectedImportId = null,
+        datasetImports = [];
       async function loadAll() {
-        const [u, l, p, s, b] = await Promise.all([
-          api("/api/users"),
-          api("/api/leads?status=QUALIFIED&limit=1000"),
+        const datasetQuery = selectedImportId
+          ? `?importJobId=${selectedImportId}`
+          : "";
+        const leadQuery = selectedImportId
+          ? `&importJobId=${selectedImportId}`
+          : "";
+        const canManage = ["SUPER_ADMIN", "ADMIN"].includes(currentUserRole);
+        const [u, l, p, s, b, imports, campaigns, audits] = await Promise.all([
+          currentUserRole === "SUPER_ADMIN" ? api("/api/users") : Promise.resolve({ items: [] }),
+          api(`/api/leads?status=QUALIFIED&limit=1000${leadQuery}`),
           api("/api/prospects"),
-          api("/api/leads/summary"),
-          api("/api/processing/status"),
+          api(`/api/leads/summary${datasetQuery}`),
+          api(`/api/processing/status${datasetQuery}`),
+          canManage ? api("/api/imports") : Promise.resolve({ items: [] }),
+          canManage ? api("/api/campaigns") : Promise.resolve({ items: [] }),
+          currentUserRole === "SUPER_ADMIN" ? api("/api/audit-logs") : Promise.resolve({ items: [] }),
         ]);
+        datasetImports = imports.items;
         leadData = l.items;
         prospects = p.items;
-        $("#mUsers").textContent = u.items.length;
+        $("#mUsers").textContent = currentUserRole === "SUPER_ADMIN" ? u.items.length : "—";
         $("#mLeads").textContent = Number(s.total || 0).toLocaleString();
         $("#mProspects").textContent = p.items.length;
         $("#sTotal").textContent = Number(s.total || 0).toLocaleString();
@@ -1428,14 +1569,87 @@
           s.qualified || 0,
         ).toLocaleString();
         renderBatch(b);
+        renderDatasets();
         $("#userRows").innerHTML = u.items
           .map(
             (x) =>
-              `<tr><td><b>${x.email}</b></td><td>${x.first_name || ""} ${x.last_name || ""}</td><td><span class="badge blue">${x.role}</span></td><td><span class="badge green">${x.status}</span></td><td>${x.last_login_at || "Never"}</td></tr>`,
+              `<tr><td><b>${esc(x.email)}</b></td><td>${esc(x.first_name)} ${esc(x.last_name)}</td><td><span class="badge blue">${esc(x.role)}</span></td><td><span class="badge green">${esc(x.status)}</span></td><td>${esc(x.last_login_at || "Never")}</td></tr>`,
           )
           .join("");
+        $("#campaignRows").innerHTML = campaigns.items.map((x) =>
+          `<tr><td><b>${esc(x.name)}</b><div class="small">${esc(x.subject)}</div></td><td>${esc(x.provider)}</td><td>${Number(x.recipients).toLocaleString()}</td><td>${Number(x.sent).toLocaleString()} / ${Number(x.failed).toLocaleString()}</td><td><span class="badge ${x.status === "COMPLETED" ? "green" : "blue"}">${esc(x.status)}</span></td><td>${campaignActions(x)}</td></tr>`
+        ).join("") || '<tr><td colspan="6" class="small">No campaigns yet.</td></tr>';
+        $("#auditRows").innerHTML = audits.items.map((x) =>
+          `<tr><td>${esc(x.created_at)}</td><td>${esc(x.user_email || "System")}</td><td>${esc(x.action)}</td><td>${esc(x.entity_type)} ${esc(x.entity_id || "")}</td><td>${esc(x.ip_address || "—")}</td></tr>`
+        ).join("") || '<tr><td colspan="5" class="small">No activity recorded.</td></tr>';
         applyLeadFilters();
         applyProspectFilters();
+      }
+      function renderDatasets() {
+        const select = $("#datasetSelect"),
+          current = selectedImportId ? String(selectedImportId) : "";
+        select.innerHTML =
+          '<option value="">All active uploads</option>' +
+          datasetImports
+            .map(
+              (x) =>
+                `<option value="${Number(x.id)}">${x.archived_at ? "ARCHIVED" : "ACTIVE"} · ${localDate(x.created_at)} · ${esc(x.file_name)} · ${Number(x.total_rows).toLocaleString()} rows</option>`,
+            )
+            .join("");
+        select.value = current;
+        const item = datasetImports.find(
+          (x) => Number(x.id) === selectedImportId,
+        );
+        $("#archiveDatasetBtn").disabled = !item || Boolean(item.archived_at);
+        $("#datasetMeta").textContent = item
+          ? `${item.archived_at ? "Archived" : "Active"} upload #${item.id} · ${Number(item.processed_rows).toLocaleString()} rows saved`
+          : "Showing all active uploads together";
+      }
+      async function changeDataset(value) {
+        selectedImportId = value ? Number(value) : null;
+        leadPage = 1;
+        await loadAll();
+      }
+      async function archiveSelectedDataset() {
+        if (!selectedImportId) return;
+        await api(`/api/imports/${selectedImportId}/archive`, {
+          method: "PATCH",
+        });
+        notice(
+          "Upload archived. It remains available in the dataset selector.",
+        );
+        selectedImportId = null;
+        await loadAll();
+      }
+      async function removeDuplicates() {
+        const scope = selectedImportId
+          ? `selected upload #${selectedImportId}`
+          : "all active uploads";
+        try {
+          const result = await api("/api/imports/deduplicate", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ importJobId: selectedImportId }),
+          });
+          notice(`${Number(result.removed).toLocaleString()} duplicate lead(s) removed from ${scope}`);
+          await loadAll();
+        } catch (x) {
+          notice(x.message, true);
+        }
+      }
+      function campaignActions(campaign) {
+        const id = Number(campaign.id);
+        if (["COMPLETED", "CANCELLED"].includes(campaign.status)) return "—";
+        if (["QUEUED", "RUNNING"].includes(campaign.status))
+          return `<button class="btn alt" onclick="updateCampaign(${id},'PAUSED')">Pause</button> <button class="btn alt" onclick="updateCampaign(${id},'CANCELLED')">Cancel</button>`;
+        return `<button class="btn alt" onclick="updateCampaign(${id},'QUEUED')">Start</button> <button class="btn alt" onclick="updateCampaign(${id},'CANCELLED')">Cancel</button>`;
+      }
+      async function updateCampaign(id, status) {
+        try {
+          await api(`/api/campaigns/${Number(id)}/status`, {method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({status})});
+          notice(`Campaign ${status.toLowerCase()} successfully`);
+          await loadAll();
+        } catch (x) { notice(x.message, true); }
       }
       function countryGroup(c) {
         c = (c || "").toLowerCase();
@@ -1466,7 +1680,10 @@
           thisMonth = today.slice(0, 7);
         const q = ($("#prospectSearch")?.value || "").toLowerCase();
         const period = $("#prospectPeriod")?.value || "all",
-          country = $("#prospectCountry")?.value || "all";
+          country = $("#prospectCountry")?.value || "all",
+          state = ($("#prospectState")?.value || "").toLowerCase(),
+          city = ($("#prospectCity")?.value || "").toLowerCase(),
+          postal = ($("#prospectPostal")?.value || "").toLowerCase();
         const allRows = (filteredProspectRows = prospects.filter((x) => {
           const day = localDate(x.created_at),
             month = day.slice(0, 7);
@@ -1478,6 +1695,18 @@
           return (
             dateOk &&
             (country === "all" || countryGroup(x.country) === country) &&
+            (!state ||
+              String(x.state || "")
+                .toLowerCase()
+                .includes(state)) &&
+            (!city ||
+              String(x.city || "")
+                .toLowerCase()
+                .includes(city)) &&
+            (!postal ||
+              String(x.postal_code || "")
+                .toLowerCase()
+                .includes(postal)) &&
             `${x.domain} ${x.company || ""} ${x.first_name || ""} ${x.last_name || ""} ${x.email || ""}`
               .toLowerCase()
               .includes(q)
@@ -1491,6 +1720,22 @@
           .filter((x) => localDate(x.created_at).slice(0, 7) === thisMonth)
           .length.toLocaleString();
         $("#pFiltered").textContent = allRows.length.toLocaleString();
+        const locationCounts = new Map();
+        allRows.forEach((x) => {
+          const key = [countryGroup(x.country), x.state, x.city, x.postal_code]
+            .filter(Boolean)
+            .join(" › ");
+          if (key) locationCounts.set(key, (locationCounts.get(key) || 0) + 1);
+        });
+        $("#pTopLocations").textContent =
+          [...locationCounts.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(
+              ([name, count], i) =>
+                `${i + 1}. ${name} — ${count} prospect${count === 1 ? "" : "s"}`,
+            )
+            .join("   |   ") || "No location data for these filters.";
         const pageSize = Number($("#prospectPageSize")?.value || 25),
           pages = Math.max(1, Math.ceil(allRows.length / pageSize));
         prospectPage = Math.min(prospectPage, pages);
@@ -1502,10 +1747,10 @@
           rows
             .map(
               (x) =>
-                `<tr><td><input class="prospectPick" type="checkbox" value="${x.id}" ${prospectSelection.has(Number(x.id)) ? "checked" : ""} onchange="toggleProspectSelection(${x.id},this.checked)"></td><td><b>${x.domain}</b><div class="small">${x.company || ""}</div></td><td>${x.first_name || ""} ${x.last_name || ""}</td><td>${x.email || "—"}</td><td>${x.country || "Unknown"}</td><td>${localDate(x.created_at)}</td><td><span class="badge green">${x.status}</span></td></tr>`,
+                `<tr><td><input class="prospectPick" type="checkbox" value="${Number(x.id)}" ${prospectSelection.has(Number(x.id)) ? "checked" : ""} onchange="toggleProspectSelection(${Number(x.id)},this.checked)"></td><td><b>${esc(x.domain)}</b><div class="small">${esc(x.company)}</div></td><td>${esc(x.first_name)} ${esc(x.last_name)}</td><td>${esc(x.email || "—")}</td><td>${esc(x.country || "Unknown")}</td><td>${esc(x.state || "—")}<div class="small">${esc(x.city || "—")} · ${esc(x.postal_code || "—")}</div></td><td>${localDate(x.created_at)}</td><td><span class="badge green">${esc(x.status)}</span></td></tr>`,
             )
             .join("") ||
-          '<tr><td colspan="7" style="text-align:center;padding:45px;color:#64748b">No prospects match these filters.</td></tr>';
+          '<tr><td colspan="8" style="text-align:center;padding:45px;color:#64748b">No prospects match these filters.</td></tr>';
         const from = allRows.length ? (prospectPage - 1) * pageSize + 1 : 0,
           to = Math.min(prospectPage * pageSize, allRows.length);
         $("#prospectCount").textContent =
@@ -1577,7 +1822,14 @@
       }
       function renderBatch(b) {
         clearTimeout(batchPoll);
-        if (!b) return;
+        if (!b) {
+          $("#batchTitle").textContent = "Choose country and start processing";
+          $("#batchNote").textContent =
+            "Only the currently selected dataset will be scanned.";
+          $("#batchBar").style.width = "0%";
+          $("#startCountryBtn").disabled = false;
+          return;
+        }
         const countries =
           typeof b.countries === "string"
             ? JSON.parse(b.countries)
@@ -1605,8 +1857,12 @@
           batchPoll = setTimeout(async () => {
             try {
               const [latest, leads] = await Promise.all([
-                api("/api/processing/status"),
-                api("/api/leads?status=QUALIFIED&limit=1000"),
+                api(
+                  `/api/processing/status${selectedImportId ? `?importJobId=${selectedImportId}` : ""}`,
+                ),
+                api(
+                  `/api/leads?status=QUALIFIED&limit=1000${selectedImportId ? `&importJobId=${selectedImportId}` : ""}`,
+                ),
               ]);
               leadData = leads.items;
               renderBatch(latest);
@@ -1623,7 +1879,7 @@
           const b = await api("/api/processing/start", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ countries }),
+            body: JSON.stringify({ countries, importJobId: selectedImportId }),
           });
           renderBatch(b);
           notice(
@@ -1654,12 +1910,27 @@
       function filteredLeads() {
         const q = ($("#leadSearch")?.value || "").toLowerCase(),
           min = Number($("#scoreFilter")?.value || 0),
+          state = ($("#stateFilter")?.value || "").toLowerCase(),
+          city = ($("#cityFilter")?.value || "").toLowerCase(),
+          postal = ($("#postalFilter")?.value || "").toLowerCase(),
           picked = new Set($$(".countryPick:checked").map((x) => x.value));
         if ($("#otherCountry")?.checked) picked.add("Other");
         return leadData.filter(
           (x) =>
             picked.has(countryGroup(x.country)) &&
             Number(x.lead_score) >= min &&
+            (!state ||
+              String(x.state || "")
+                .toLowerCase()
+                .includes(state)) &&
+            (!city ||
+              String(x.city || "")
+                .toLowerCase()
+                .includes(city)) &&
+            (!postal ||
+              String(x.postal_code || "")
+                .toLowerCase()
+                .includes(postal)) &&
             (!$("#emailOnly")?.checked || x.email) &&
             (!$("#phoneOnly")?.checked || x.phone) &&
             `${x.domain} ${x.company || ""} ${x.first_name || ""} ${x.last_name || ""} ${x.email || ""}`
@@ -1681,10 +1952,10 @@
           rows
             .map(
               (x) =>
-                `<tr data-lead="${x.id}"><td><input class="leadPick" type="checkbox" value="${x.id}"></td><td><b>${x.domain}</b><div class="small">${x.company || "Company unavailable"}</div></td><td><b>${x.first_name || "—"}</b><div class="small">${x.last_name || ""}</div></td><td>${x.email || "No email"}<div class="small">${x.phone || "No phone"}</div></td><td>${x.country || "Unknown"}</td><td><span class="badge green">${String(x.website_status).replaceAll("_", " ")}</span></td><td><span class="badge orange">${x.lead_score}/100</span></td></tr>`,
+                `<tr data-lead="${Number(x.id)}"><td><input class="leadPick" type="checkbox" value="${Number(x.id)}"></td><td><b>${esc(x.domain)}</b><div class="small">${esc(x.company || "Company unavailable")}</div></td><td><b>${esc(x.first_name || "—")}</b><div class="small">${esc(x.last_name)}</div></td><td>${esc(x.email || "No email")}<div class="small">${esc(x.phone || "No phone")}</div></td><td>${esc(x.country || "Unknown")}</td><td>${esc(x.state || "—")}<div class="small">${esc(x.city || "—")} · ${esc(x.postal_code || "—")}</div></td><td><span class="badge green">${esc(String(x.website_status).replaceAll("_", " "))}</span></td><td><span class="badge orange">${Number(x.lead_score)}/100</span></td></tr>`,
             )
             .join("") ||
-          '<tr><td colspan="7" style="text-align:center;padding:45px;color:#64748b">No qualified leads match these filters.</td></tr>';
+          '<tr><td colspan="8" style="text-align:center;padding:45px;color:#64748b">No qualified leads match these filters.</td></tr>';
         const from = allRows.length ? (leadPage - 1) * pageSize + 1 : 0,
           to = Math.min(leadPage * pageSize, allRows.length);
         $("#leadCount").textContent =
@@ -1740,6 +2011,7 @@
           "country",
           "state",
           "city",
+          "postal_code",
           "website_status",
           "lead_score",
         ];
@@ -1825,6 +2097,7 @@
         }, 900);
       }
       function completeProcess(d) {
+        selectedImportId = Number(d.id);
         clearTimeout(stageTimer);
         clearInterval(progressPoll);
         $("#processTitle").textContent = "Import saved successfully";
@@ -1835,7 +2108,7 @@
         $$(".pstep").forEach((x) => (x.className = "pstep done"));
         $("#processResult").classList.remove("hide");
         $("#processResult").innerHTML =
-          `<div class="card"><span class="small">Total rows</span><b style="display:block;font-size:24px">${d.total}</b></div><div class="card"><span class="small">Website checks</span><b style="display:block;font-size:24px">${d.pending}</b></div><div class="card"><span class="small">Rejected early</span><b style="display:block;font-size:24px">${d.rejected}</b></div>`;
+          `<div class="card"><span class="small">Total rows</span><b style="display:block;font-size:24px">${Number(d.total).toLocaleString()}</b></div><div class="card"><span class="small">Website checks</span><b style="display:block;font-size:24px">${Number(d.pending).toLocaleString()}</b></div><div class="card"><span class="small">Rejected early</span><b style="display:block;font-size:24px">${Number(d.rejected).toLocaleString()}</b></div>`;
         $("#processDone").classList.remove("hide");
       }
       function finishProcess() {
@@ -1882,6 +2155,7 @@
           minScore: Number($("#scoreFilter").value || 0),
           emailOnly: $("#emailOnly").checked,
           phoneOnly: $("#phoneOnly").checked,
+          importJobId: selectedImportId,
         };
         try {
           const d = await api("/api/leads/move-filtered-to-prospects", {
@@ -1920,7 +2194,9 @@
               dailyLimit: 200,
             }),
           });
-          notice(`Campaign #${d.id} saved as DRAFT`);
+          notice(`Campaign #${d.id} saved with ${Number(d.recipients).toLocaleString()} recipient(s)`);
+          e.target.reset();
+          await loadAll();
         } catch (x) {
           notice(x.message, true);
         }

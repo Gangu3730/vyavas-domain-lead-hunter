@@ -2,6 +2,8 @@ import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import bcrypt from 'bcryptjs';
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
@@ -13,7 +15,11 @@ const dashboardHtml = await readFile(
   new URL('../public/index.html', import.meta.url),
   'utf8',
 );
-const app = Fastify({ logger: true, bodyLimit: 10 * 1024 * 1024 });
+const app = Fastify({
+  trustProxy: config.TRUST_PROXY,
+  bodyLimit: 10 * 1024 * 1024,
+  logger: {redact:['req.headers.authorization','req.headers.cookie','res.headers.set-cookie']},
+});
 await db.query(`CREATE TABLE IF NOT EXISTS processing_batches (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   created_by BIGINT UNSIGNED NOT NULL,
@@ -34,6 +40,13 @@ await db.query(`CREATE TABLE IF NOT EXISTS exclusion_rules (
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_exclusion_pattern(pattern)
 )`);
+try { await db.query('ALTER TABLE import_jobs ADD COLUMN archived_at DATETIME(3) NULL'); } catch (e:any) { if (e?.code !== 'ER_DUP_FIELDNAME') throw e; }
+try { await db.query('ALTER TABLE processing_batches ADD COLUMN import_job_id BIGINT UNSIGNED NULL'); } catch (e:any) { if (e?.code !== 'ER_DUP_FIELDNAME') throw e; }
+try { await db.query('ALTER TABLE leads ADD COLUMN postal_code VARCHAR(30) NULL AFTER city'); } catch (e:any) { if (e?.code !== 'ER_DUP_FIELDNAME') throw e; }
+try { await db.query('ALTER TABLE prospects ADD COLUMN postal_code VARCHAR(30) NULL AFTER city'); } catch (e:any) { if (e?.code !== 'ER_DUP_FIELDNAME') throw e; }
+try { await db.query('CREATE INDEX idx_leads_scan ON leads(status,website_status,import_job_id,country,id)'); } catch (e:any) { if (e?.code !== 'ER_DUP_KEYNAME') throw e; }
+try { await db.query('ALTER TABLE campaigns ADD COLUMN next_send_at DATETIME(3) NULL'); } catch (e:any) { if (e?.code !== 'ER_DUP_FIELDNAME') throw e; }
+try { await db.query('CREATE INDEX idx_campaign_queue ON campaigns(status,next_send_at)'); } catch (e:any) { if (e?.code !== 'ER_DUP_KEYNAME') throw e; }
 await app.register(cookie);
 await app.register(jwt, {
   secret: config.JWT_SECRET,
@@ -41,6 +54,15 @@ await app.register(jwt, {
 });
 await app.register(multipart, {
   limits: { fileSize: 50 * 1024 * 1024, files: 1 },
+});
+await app.register(rateLimit,{global:false});
+await app.register(helmet,{
+  contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'","'unsafe-inline'"],styleSrc:["'self'","'unsafe-inline'"],imgSrc:["'self'",'data:'],objectSrc:["'none'"],baseUri:["'self'"],frameAncestors:["'none'"]}},
+});
+app.addHook('onRequest',async(req,reply)=>{
+  if(!['POST','PUT','PATCH','DELETE'].includes(req.method))return;
+  const origin=req.headers.origin;
+  if(origin&&origin!==config.APP_ORIGIN)return reply.code(403).send({error:'Invalid request origin'});
 });
 app.addHook('onSend', async (_req, reply) => {
   reply
@@ -53,7 +75,7 @@ app.get('/', async (_req, reply) =>
   reply.type('text/html').send(dashboardHtml),
 );
 await importRoutes(app);
-app.post('/api/auth/login', async (req, reply) => {
+app.post('/api/auth/login', {config:{rateLimit:{max:5,timeWindow:'1 minute'}}}, async (req, reply) => {
   const b = z
     .object({ email: z.string().email(), password: z.string().min(1) })
     .parse(req.body);
@@ -87,7 +109,7 @@ app.post(
   '/api/auth/logout',
   { preHandler: requireUser },
   async (req, reply) => {
-    reply.clearCookie('vyavas_session', { path: '/' });
+    reply.clearCookie('vyavas_session', { path: '/',secure:config.NODE_ENV==='production',sameSite:'lax' });
     await audit(req.user.id, 'LOGOUT', 'USER', String(req.user.id), {}, req.ip);
     return { ok: true };
   },
@@ -137,7 +159,7 @@ app.post(
 app.patch(
   '/api/users/:id',
   { preHandler: allow('SUPER_ADMIN') },
-  async (req) => {
+  async (req, reply) => {
     const id = z.coerce
         .number()
         .int()
@@ -149,8 +171,8 @@ app.patch(
           role: z.enum(['ADMIN', 'USER']).optional(),
         })
         .parse(req.body);
-    if (id === req.user.id && b.status === 'DISABLED')
-      throw new Error('Cannot disable your own account');
+    if (id === req.user.id && (b.status === 'DISABLED'||b.role))
+      return reply.code(400).send({error:'Cannot disable or change your own administrator role'});
     await db.execute(
       'UPDATE users SET status=COALESCE(?,status),role=COALESCE(?,role) WHERE id=?',
       [b.status ?? null, b.role ?? null, id],
@@ -162,16 +184,17 @@ app.patch(
 app.get(
   '/api/leads/summary',
   { preHandler: allow('SUPER_ADMIN', 'ADMIN', 'USER') },
-  async () => {
+  async (req, reply) => {
+    const q=z.object({importJobId:z.coerce.number().int().positive().optional()}).parse(req.query), scope=q.importJobId?' AND l.import_job_id=?':' AND j.archived_at IS NULL';
     const [rows] = await db.query<any[]>(`SELECT COUNT(*) total,
-      SUM(status='QUALIFIED') qualified,
-      SUM(status='REJECTED') rejected,
-      SUM(status='PENDING') pending,
-      SUM(website_status='LIVE') live_rejected,
-      SUM(website_status IN ('PARKED','COMING_SOON','NO_WEBSITE') AND status='QUALIFIED') no_website,
-      SUM(email IS NOT NULL AND email<>'') with_email,
-      SUM(phone IS NOT NULL AND phone<>'') with_phone
-      FROM leads WHERE status<>'DELETED'`);
+      SUM(l.status='QUALIFIED') qualified,
+      SUM(l.status='REJECTED') rejected,
+      SUM(l.status='PENDING') pending,
+      SUM(l.website_status='LIVE') live_rejected,
+      SUM(l.website_status IN ('PARKED','COMING_SOON','NO_WEBSITE') AND l.status='QUALIFIED') no_website,
+      SUM(l.email IS NOT NULL AND l.email<>'') with_email,
+      SUM(l.phone IS NOT NULL AND l.phone<>'') with_phone
+      FROM leads l JOIN import_jobs j ON j.id=l.import_job_id WHERE l.status<>'DELETED'${scope}`,q.importJobId?[q.importJobId]:[]);
     return rows[0]??{};
   },
 );
@@ -185,20 +208,22 @@ app.get(
           country: z.string().optional(),
           page: z.coerce.number().int().positive().default(1),
           limit: z.coerce.number().int().min(1).max(1000).default(50),
+          importJobId: z.coerce.number().int().positive().optional(),
         })
         .parse(req.query),
-      where: string[] = ["status<>'DELETED'"],
+      where: string[] = ["l.status<>'DELETED'"],
       args: any[] = [];
     if (q.status) {
-      where.push('status=?');
+      where.push('l.status=?');
       args.push(q.status);
     }
     if (q.country) {
-      where.push('country=?');
+      where.push('l.country=?');
       args.push(q.country);
     }
+    if(q.importJobId){where.push('l.import_job_id=?');args.push(q.importJobId)}else where.push('j.archived_at IS NULL');
     const [rows] = await db.execute(
-      `SELECT * FROM leads WHERE ${where.join(' AND ')} ORDER BY lead_score DESC,id DESC LIMIT ? OFFSET ?`,
+      `SELECT l.* FROM leads l JOIN import_jobs j ON j.id=l.import_job_id WHERE ${where.join(' AND ')} ORDER BY l.lead_score DESC,l.id DESC LIMIT ? OFFSET ?`,
       [...args, q.limit, (q.page - 1) * q.limit],
     );
     return { items: rows, page: q.page };
@@ -211,20 +236,32 @@ const countryCase = `CASE
   WHEN LOWER(TRIM(COALESCE(country,''))) IN ('au','aus','australia') THEN 'Australia'
   WHEN LOWER(TRIM(COALESCE(country,''))) IN ('in','ind','india') THEN 'India'
   ELSE 'Other' END`;
-app.get('/api/processing/status', { preHandler: allow('SUPER_ADMIN', 'ADMIN', 'USER') }, async () => {
-  const [rows] = await db.query<any[]>('SELECT * FROM processing_batches ORDER BY id DESC LIMIT 1');
+app.get('/api/processing/status', { preHandler: allow('SUPER_ADMIN', 'ADMIN', 'USER') }, async (req) => {
+  const q=z.object({importJobId:z.coerce.number().int().positive().optional()}).parse(req.query);
+  const [rows] = await db.execute<any[]>(q.importJobId?'SELECT * FROM processing_batches WHERE import_job_id=? AND total_rows>0 ORDER BY id DESC LIMIT 1':"SELECT b.* FROM processing_batches b LEFT JOIN import_jobs j ON j.id=b.import_job_id WHERE b.total_rows>0 AND (b.import_job_id IS NULL OR j.archived_at IS NULL) ORDER BY b.id DESC LIMIT 1",q.importJobId?[q.importJobId]:[]);
   return rows[0] ?? null;
 });
 app.post('/api/processing/start', { preHandler: allow('SUPER_ADMIN', 'ADMIN') }, async (req, reply) => {
-  const b = z.object({ countries: z.array(z.enum(['USA','UAE','Canada','Australia','India','Other'])).min(1).max(6) }).parse(req.body);
-  const [running] = await db.query<any[]>("SELECT id FROM processing_batches WHERE status='RUNNING' LIMIT 1");
-  if (running[0]) return reply.code(409).send({ error: 'A processing batch is already running' });
-  const marks = b.countries.map(() => '?').join(',');
-  const [counts] = await db.execute<any[]>(`SELECT COUNT(*) total FROM leads WHERE status='PENDING' AND website_status='UNSCANNED' AND ${countryCase} IN (${marks})`, b.countries);
-  const total = Number(counts[0]?.total ?? 0);
-  const [result] = await db.execute<any>('INSERT INTO processing_batches(created_by,countries,status,total_rows) VALUES(?,?,?,?)', [req.user.id, JSON.stringify(b.countries), total ? 'RUNNING' : 'COMPLETED', total]);
+  const b = z.object({ countries: z.array(z.enum(['USA','UAE','Canada','Australia','India','Other'])).min(1).max(6), importJobId:z.number().int().positive().nullable().optional() }).parse(req.body);
+  const conn=await db.getConnection();
+  let result:any,total=0;
+  try{
+    const [locks]=await conn.query<any[]>("SELECT GET_LOCK('vyavas_processing_start',5) acquired");
+    if(!locks[0]?.acquired)return reply.code(409).send({error:'Processing is busy. Please try again'});
+    const [running] = await conn.query<any[]>("SELECT id FROM processing_batches WHERE status='RUNNING' LIMIT 1");
+    if (running[0]) return reply.code(409).send({ error: 'A processing batch is already running' });
+    const marks = b.countries.map(() => '?').join(',');
+    const jobScope=b.importJobId?' AND l.import_job_id=?':' AND j.archived_at IS NULL', countArgs=b.importJobId?[...b.countries,b.importJobId]:b.countries;
+    const [counts] = await conn.execute<any[]>(`SELECT COUNT(*) total FROM leads l JOIN import_jobs j ON j.id=l.import_job_id WHERE l.status='PENDING' AND l.website_status='UNSCANNED' AND ${countryCase} IN (${marks})${jobScope}`, countArgs);
+    total = Number(counts[0]?.total ?? 0);
+    if(!total)return reply.code(409).send({error:`No pending leads found for ${b.countries.join(', ')} in the selected dataset`});
+    [result] = await conn.execute<any>('INSERT INTO processing_batches(created_by,countries,status,total_rows,import_job_id) VALUES(?,?,?,?,?)', [req.user.id, JSON.stringify(b.countries), 'RUNNING', total,b.importJobId??null]);
+  }finally{
+    await conn.query("SELECT RELEASE_LOCK('vyavas_processing_start')").catch(()=>{});
+    conn.release();
+  }
   await audit(req.user.id, 'START_COUNTRY_PROCESSING', 'PROCESSING_BATCH', String(result.insertId), { countries: b.countries, total }, req.ip);
-  return reply.code(201).send({ id: result.insertId, countries: b.countries, status: total ? 'RUNNING' : 'COMPLETED', total_rows: total, processed_rows: 0, qualified_rows: 0, rejected_rows: 0 });
+  return reply.code(201).send({ id: result.insertId, countries: b.countries, status: 'RUNNING', total_rows: total, processed_rows: 0, qualified_rows: 0, rejected_rows: 0 });
 });
 app.get('/api/exclusions', { preHandler: allow('SUPER_ADMIN', 'ADMIN', 'USER') }, async () => {
   const [items] = await db.query('SELECT id,pattern,created_at FROM exclusion_rules ORDER BY id DESC');
@@ -263,7 +300,7 @@ app.post(
         const l = rows[0];
         if (!l) continue;
         await conn.execute(
-          `INSERT INTO prospects(source_lead_id,domain,first_name,last_name,company,email,phone,country,state,city,lead_score,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE updated_at=NOW(3)`,
+          `INSERT INTO prospects(source_lead_id,domain,first_name,last_name,company,email,phone,country,state,city,postal_code,lead_score,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE updated_at=NOW(3)`,
           [
             id,
             l.domain,
@@ -275,6 +312,7 @@ app.post(
             l.country,
             l.state,
             l.city,
+            l.postal_code,
             l.lead_score,
             req.user.id,
           ],
@@ -303,16 +341,17 @@ app.post(
   },
 );
 app.post('/api/leads/move-filtered-to-prospects', { preHandler: allow('SUPER_ADMIN', 'ADMIN') }, async (req) => {
-  const b = z.object({ countries: z.array(z.enum(['USA','UAE','Canada','Australia','India','Other'])).min(1).max(6), minScore: z.number().int().min(0).max(100).default(0), emailOnly: z.boolean().default(false), phoneOnly: z.boolean().default(false) }).parse(req.body);
+  const b = z.object({ countries: z.array(z.enum(['USA','UAE','Canada','Australia','India','Other'])).min(1).max(6), minScore: z.number().int().min(0).max(100).default(0), emailOnly: z.boolean().default(false), phoneOnly: z.boolean().default(false), importJobId:z.number().int().positive().nullable().optional() }).parse(req.body);
   const marks = b.countries.map(() => '?').join(',');
-  const extra = `${b.emailOnly ? " AND email IS NOT NULL AND email<>''" : ''}${b.phoneOnly ? " AND phone IS NOT NULL AND phone<>''" : ''}`;
+  const extra = `${b.emailOnly ? " AND email IS NOT NULL AND email<>''" : ''}${b.phoneOnly ? " AND phone IS NOT NULL AND phone<>''" : ''}${b.importJobId?' AND import_job_id=?':''}`;
+  const filterArgs=b.importJobId?[...b.countries,b.minScore,b.importJobId]:[...b.countries,b.minScore];
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const [r] = await conn.execute<any>(`INSERT IGNORE INTO prospects(source_lead_id,domain,first_name,last_name,company,email,phone,country,state,city,lead_score,created_by)
-      SELECT id,domain,first_name,last_name,company,email,phone,country,state,city,lead_score,? FROM leads
-      WHERE status='QUALIFIED' AND ${countryCase} IN (${marks}) AND lead_score>=?${extra}`, [req.user.id, ...b.countries, b.minScore]);
-    await conn.execute(`UPDATE leads SET status='MOVED_TO_PROSPECT' WHERE status='QUALIFIED' AND ${countryCase} IN (${marks}) AND lead_score>=?${extra}`, [...b.countries, b.minScore]);
+    const [r] = await conn.execute<any>(`INSERT IGNORE INTO prospects(source_lead_id,domain,first_name,last_name,company,email,phone,country,state,city,postal_code,lead_score,created_by)
+      SELECT id,domain,first_name,last_name,company,email,phone,country,state,city,postal_code,lead_score,? FROM leads
+      WHERE status='QUALIFIED' AND ${countryCase} IN (${marks}) AND lead_score>=?${extra}`, [req.user.id, ...filterArgs]);
+    await conn.execute(`UPDATE leads SET status='MOVED_TO_PROSPECT' WHERE status='QUALIFIED' AND ${countryCase} IN (${marks}) AND lead_score>=?${extra}`, filterArgs);
     await conn.commit();
     await audit(req.user.id, 'BULK_MOVE_TO_PROSPECTS', 'LEAD', null, { ...b, moved: r.affectedRows }, req.ip);
     return { ok: true, moved: r.affectedRows };
@@ -328,6 +367,13 @@ app.get(
     return { items: rows };
   },
 );
+app.get('/api/campaigns',{preHandler:allow('SUPER_ADMIN','ADMIN')},async()=>{
+  const[items]=await db.query(`SELECT c.id,c.name,c.provider,c.subject,c.status,c.hourly_limit,c.daily_limit,c.created_at,
+    COUNT(cr.id) recipients,SUM(cr.status='SENT') sent,SUM(cr.status='FAILED') failed,SUM(cr.status='PENDING') pending
+    FROM campaigns c LEFT JOIN campaign_recipients cr ON cr.campaign_id=c.id
+    GROUP BY c.id ORDER BY c.id DESC LIMIT 200`);
+  return{items};
+});
 app.post(
   '/api/campaigns',
   { preHandler: allow('SUPER_ADMIN', 'ADMIN') },
@@ -365,19 +411,24 @@ app.post(
       );
       for (const ids of chunk(b.prospectIds, 500))
         await conn.query(
-          `INSERT IGNORE INTO campaign_recipients(campaign_id,prospect_id) SELECT ?,id FROM prospects WHERE id IN (${ids.map(() => '?').join(',')}) AND email IS NOT NULL AND status='ACTIVE'`,
+          `INSERT IGNORE INTO campaign_recipients(campaign_id,prospect_id)
+           SELECT ?,p.id FROM prospects p LEFT JOIN suppressions s ON s.email=p.email
+           WHERE p.id IN (${ids.map(() => '?').join(',')}) AND p.email IS NOT NULL AND p.status='ACTIVE' AND s.id IS NULL`,
           [r.insertId, ...ids],
         );
+      const[counts]=await conn.execute<any[]>('SELECT COUNT(*) total FROM campaign_recipients WHERE campaign_id=?',[r.insertId]);
+      const recipients=Number(counts[0]?.total??0);
+      if(!recipients){await conn.rollback();return reply.code(400).send({error:'No eligible email recipients were selected'})}
       await conn.commit();
       await audit(
         req.user.id,
         'CREATE_CAMPAIGN',
         'CAMPAIGN',
         String(r.insertId),
-        { name: b.name, recipients: b.prospectIds.length },
+        { name: b.name, recipients },
         req.ip,
       );
-      return reply.code(201).send({ id: r.insertId, status: 'DRAFT' });
+      return reply.code(201).send({ id: r.insertId, status: 'DRAFT',recipients });
     } catch (e) {
       await conn.rollback();
       throw e;
@@ -389,7 +440,7 @@ app.post(
 app.patch(
   '/api/campaigns/:id/status',
   { preHandler: allow('SUPER_ADMIN', 'ADMIN') },
-  async (req) => {
+  async (req, reply) => {
     const id = z.coerce
         .number()
         .int()
@@ -398,10 +449,10 @@ app.patch(
       b = z
         .object({ status: z.enum(['QUEUED', 'PAUSED', 'CANCELLED']) })
         .parse(req.body);
-    await db.execute('UPDATE campaigns SET status=? WHERE id=?', [
-      b.status,
-      id,
-    ]);
+    const allowed=b.status==='QUEUED'?['DRAFT','PAUSED']:b.status==='PAUSED'?['QUEUED','RUNNING']:['DRAFT','QUEUED','RUNNING','PAUSED'];
+    const marks=allowed.map(()=>'?').join(',');
+    const[result]=await db.execute<any>(`UPDATE campaigns SET status=? WHERE id=? AND status IN (${marks})`,[b.status,id,...allowed]);
+    if(!result.affectedRows)return reply.code(409).send({error:'Campaign status can no longer be changed'});
     await audit(
       req.user.id,
       'CAMPAIGN_STATUS',
@@ -413,6 +464,11 @@ app.patch(
     return { ok: true };
   },
 );
+app.get('/api/audit-logs',{preHandler:allow('SUPER_ADMIN')},async()=>{
+  const[items]=await db.query(`SELECT a.id,a.action,a.entity_type,a.entity_id,a.ip_address,a.created_at,u.email user_email
+    FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT 500`);
+  return{items};
+});
 app.post(
   '/api/suppressions',
   { preHandler: allow('SUPER_ADMIN', 'ADMIN') },
@@ -430,23 +486,24 @@ app.post(
     return { ok: true };
   },
 );
-app.setErrorHandler((e, _req, reply) =>
-  reply
-    .code(e instanceof z.ZodError ? 400 : 500)
-    .send({
-      error:
-        e instanceof z.ZodError
-          ? e.issues
-          : e instanceof Error
-            ? e.message
-            : 'Unexpected error',
-    }),
-);
+app.setErrorHandler((e:any, req, reply) => {
+  if(e instanceof z.ZodError)return reply.code(400).send({error:e.issues});
+  if(e?.statusCode===429)return reply.code(429).send({error:'Too many attempts. Please wait and try again'});
+  if(e?.code==='ER_DUP_ENTRY')return reply.code(409).send({error:'This record already exists'});
+  req.log.error({err:e},'Request failed');
+  return reply.code(500).send({error:'Unexpected server error'});
+});
 app.get('/health', async () => {
   await db.query('SELECT 1');
   return { ok: true };
 });
 await app.listen({ port: config.PORT, host: '0.0.0.0' });
+for(const signal of ['SIGINT','SIGTERM'] as const)process.once(signal,async()=>{
+  app.log.info({signal},'Shutting down');
+  await app.close();
+  await db.end();
+  process.exit(0);
+});
 function chunk<T>(a: T[], n: number) {
   const out: T[][] = [];
   for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n));

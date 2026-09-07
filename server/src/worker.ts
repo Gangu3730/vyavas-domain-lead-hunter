@@ -9,6 +9,8 @@ const transport = nodemailer.createTransport({
   pool: true,
   maxConnections: 2,
   maxMessages: 50,
+  disableFileAccess:true,
+  disableUrlAccess:true,
 });
 type Job = {
   recipient_id: number;
@@ -38,7 +40,7 @@ async function claim(): Promise<Job | null> {
   try {
     await c.beginTransaction();
     const [rows] = await c.query<any[]>(
-      `SELECT cr.id recipient_id,c.id campaign_id,c.subject,c.html_body,c.min_delay_seconds,c.max_delay_seconds,c.hourly_limit,c.daily_limit,p.email,p.first_name,p.last_name,p.company,p.domain,p.country FROM campaign_recipients cr JOIN campaigns c ON c.id=cr.campaign_id JOIN prospects p ON p.id=cr.prospect_id LEFT JOIN suppressions s ON s.email=p.email WHERE cr.status='PENDING' AND (cr.next_attempt_at IS NULL OR cr.next_attempt_at<=NOW(3)) AND c.status IN ('QUEUED','RUNNING') AND p.status='ACTIVE' AND p.email IS NOT NULL AND s.id IS NULL ORDER BY cr.id LIMIT 1 FOR UPDATE SKIP LOCKED`,
+      `SELECT cr.id recipient_id,c.id campaign_id,c.subject,c.html_body,c.min_delay_seconds,c.max_delay_seconds,c.hourly_limit,c.daily_limit,p.email,p.first_name,p.last_name,p.company,p.domain,p.country FROM campaign_recipients cr JOIN campaigns c ON c.id=cr.campaign_id JOIN prospects p ON p.id=cr.prospect_id LEFT JOIN suppressions s ON s.email=p.email WHERE cr.status='PENDING' AND (cr.next_attempt_at IS NULL OR cr.next_attempt_at<=NOW(3)) AND (c.next_send_at IS NULL OR c.next_send_at<=NOW(3)) AND c.status IN ('QUEUED','RUNNING') AND p.status='ACTIVE' AND p.email IS NOT NULL AND s.id IS NULL ORDER BY cr.id LIMIT 1 FOR UPDATE SKIP LOCKED`,
     );
     const j = rows[0] as Job | undefined;
     if (!j) {
@@ -86,7 +88,7 @@ async function work() {
     const info = await transport.sendMail({
       from: { name: config.SMTP_FROM_NAME, address: config.SMTP_FROM_EMAIL },
       to: j.email,
-      subject: render(j.subject, j),
+      subject: render(j.subject, j).replace(/[\r\n]+/g,' ').trim(),
       html: render(j.html_body, j),
       headers: { 'X-Auto-Response-Suppress': 'All' },
     });
@@ -99,10 +101,9 @@ async function work() {
       "UPDATE campaign_recipients SET status='SENT',sent_at=NOW(3),provider_message_id=? WHERE id=?",
       [info.messageId, j.recipient_id],
     );
-    await db.execute(
-      "UPDATE campaign_recipients SET next_attempt_at=DATE_ADD(NOW(),INTERVAL ? SECOND) WHERE campaign_id=? AND status='PENDING' AND next_attempt_at IS NULL ORDER BY id LIMIT 1",
-      [delay, j.campaign_id],
-    );
+    await db.execute("UPDATE campaigns SET next_send_at=DATE_ADD(NOW(),INTERVAL ? SECOND) WHERE id=?",[delay,j.campaign_id]);
+    const [remaining]=await db.execute<any[]>("SELECT COUNT(*) total FROM campaign_recipients WHERE campaign_id=? AND status IN ('PENDING','SENDING')",[j.campaign_id]);
+    if(!Number(remaining[0]?.total))await db.execute("UPDATE campaigns SET status='COMPLETED' WHERE id=?",[j.campaign_id]);
     return true;
   } catch (e) {
     const message = e instanceof Error ? e.message : 'SMTP failure';
@@ -113,11 +114,16 @@ async function work() {
     return true;
   }
 }
+await db.execute("UPDATE campaign_recipients SET status='PENDING',next_attempt_at=NOW(3),last_error='Recovered after worker restart' WHERE status='SENDING' AND updated_at<DATE_SUB(NOW(),INTERVAL 15 MINUTE)");
 console.log(`VYAVAS email worker started with ${config.SMTP_PROVIDER}`);
-for (;;) {
+let stopping=false;
+for(const signal of ['SIGINT','SIGTERM'] as const)process.once(signal,()=>{console.log(`${signal} received; finishing current email`);stopping=true});
+while (!stopping) {
   const active = await work().catch((e) => {
     console.error(e);
     return false;
   });
-  await new Promise((r) => setTimeout(r, active ? 1000 : 10000));
+  if(!stopping)await new Promise((r) => setTimeout(r, active ? 1000 : 10000));
 }
+transport.close();
+await db.end();

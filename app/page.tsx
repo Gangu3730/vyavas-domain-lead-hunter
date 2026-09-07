@@ -1,5 +1,5 @@
-import { DomainHunterDashboard } from '@/components/domain-hunter/dashboard';
+import { VyavasWorkspace } from '@/components/vyavas/workspace';
 
 export default function Home() {
-  return <DomainHunterDashboard />;
+  return <VyavasWorkspace />;
 }
