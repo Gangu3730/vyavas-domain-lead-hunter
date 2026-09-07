@@ -1,4 +1,5 @@
 import { safeFetch } from '@/lib/domain-hunter/scanner';
+import {requireApiUser} from '@/app/chatgpt-auth';
 
 const parkedPatterns = [
   /domain (?:is )?(?:for sale|parking)/i,
@@ -21,6 +22,8 @@ const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 
 export async function POST(req: Request) {
+  const unauthorized=await requireApiUser();
+  if(unauthorized)return unauthorized;
   const body = (await req.json().catch(() => ({}))) as { domain?: unknown },
     domain =
       typeof body.domain === 'string' ? body.domain.trim().toLowerCase() : '';
